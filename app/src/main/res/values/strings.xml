@@ -1,0 +1,440 @@
+<resources>
+    <string name="app_name">RideConnectX</string>
+
+    <!--
+      Google Sign-In OAuth client ID (Web client ID).
+
+      Empty on purpose: Google Sign-In stays disabled until a Google Cloud or
+      Firebase project is created for this app. To enable it, register
+      package  com.eshwar.rideconnectx
+      SHA-1    4B:91:EB:8A:AC:6A:1E:55:40:2C:12:B9:96:9D:DD:7A:D1:35:84:F5   (debug)
+      then paste the generated Web client ID here. Nothing else needs changing.
+    -->
+    <string name="google_oauth_client_id" translatable="false">491161714058-817i62cqm436qia382u2cv5lf5vogp7j.apps.googleusercontent.com</string>
+
+    <!--
+      Google Maps / Directions API key.
+
+      Empty on purpose: route calculation stays disabled until a key with the
+      Maps SDK for Android and Directions API enabled is pasted here.
+      Sending turns to the cluster over BLE does NOT need this key.
+    -->
+    <string name="google_maps_api_key" translatable="false"></string>
+
+    <!--
+      ══ App text ═══════════════════════════════════════════════════════════
+
+      Everything the rider reads. Translations live in values-te and values-hi;
+      a string missing from those falls back to the English here, so a partial
+      translation degrades to English rather than to a crash.
+
+      Naming: <screen>_<what it is>. Shared wording is under `common_`.
+    -->
+
+    <!-- Shared -->
+    <string name="common_continue">Continue</string>
+    <string name="common_back">Back</string>
+    <string name="common_close">Close</string>
+    <string name="common_skip">Skip</string>
+    <string name="common_next">Next</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_save">Save</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_edit">Edit</string>
+    <string name="common_remove">Remove</string>
+    <string name="common_add">Add</string>
+    <string name="common_not_now">Not now</string>
+    <string name="common_granted">Granted</string>
+    <string name="common_rider">Rider</string>
+    <string name="common_km">km</string>
+    <string name="common_terms">Terms</string>
+    <string name="common_privacy_policy">Privacy Policy</string>
+
+    <!-- 02–05 Intro -->
+    <string name="intro_welcome_to">Welcome to</string>
+    <string name="intro_tagline">Premium navigation and ride intelligence for every connected vehicle.</string>
+    <string name="intro_get_started">Get Started</string>
+    <string name="intro_lets_go">Let\'s Go</string>
+    <string name="intro_nav_title">Turn-by-Turn Navigation</string>
+    <string name="intro_nav_desc">Real-time navigation delivered to your vehicle\'s display. Eyes on road — always.</string>
+    <string name="intro_ble_title">Bluetooth Connectivity</string>
+    <string name="intro_ble_desc">Seamless BLE 5.0 pairing. Real-time data bridge between your phone and digital cluster.</string>
+    <string name="intro_stats_title">Ride Intelligence</string>
+    <string name="intro_stats_desc">Live stats, fuel tracking, trip history and diagnostics — all in one premium interface.</string>
+    <string name="intro_hero_status">Ride Connect · Access 125 · BLE Paired</string>
+
+    <!-- 06 Sign In -->
+    <string name="signin_welcome_back">Welcome back</string>
+    <string name="signin_subtitle">Sign in to continue riding</string>
+    <string name="signin_google">Continue with Google</string>
+    <string name="signin_email">Continue with Email</string>
+    <string name="signin_guest">Continue as Guest</string>
+    <!-- Quoted so aapt keeps the spaces at the ends (N47). -->
+    <string name="signin_legal_prefix">"By continuing you agree to our "</string>
+    <string name="signin_legal_and">" and "</string>
+    <string name="signin_field_name">Your name</string>
+    <string name="signin_field_email">Email</string>
+    <string name="signin_field_password">Password</string>
+    <string name="signin_password_rule">At least 8 characters, with a letter and a number</string>
+    <string name="signin_create_account">Create Account</string>
+    <string name="signin_sign_in">Sign In</string>
+    <string name="signin_have_account">Have an account? Sign in</string>
+    <string name="signin_new_here">New here? Create account</string>
+    <string name="signin_forgot">Forgot password?</string>
+
+    <!-- 07 Guest -->
+    <string name="guest_title">Guest Account</string>
+    <string name="guest_heading">What should we call you?</string>
+    <string name="guest_subtitle">Just your name — nothing else needed.</string>
+    <string name="guest_name_label">YOUR NAME</string>
+    <string name="guest_name_hint">e.g. Alex</string>
+    <string name="guest_nav_notice_title">Navigation requires Google Sign-In</string>
+    <string name="guest_nav_notice_body">All other features available as guest.</string>
+    <string name="guest_nav_notice_title_local">Navigation works through Google Maps</string>
+    <string name="guest_nav_notice_body_local">Start a route in Google Maps and this app shows it on the cluster.</string>
+    <string name="guest_creating">Creating…</string>
+
+    <!-- 10 Permissions -->
+    <string name="perm_title">App Permissions</string>
+    <string name="perm_subtitle">Required to enable core features</string>
+    <string name="perm_continue_anyway">Continue Anyway</string>
+    <string name="perm_step_notifications">Allow notifications</string>
+    <string name="perm_step_bluetooth">Allow Bluetooth</string>
+    <string name="perm_step_bluetooth_on">Turn on Bluetooth</string>
+    <string name="perm_step_location">Allow location</string>
+    <string name="perm_step_location_on">Turn on location</string>
+
+
+    <!-- 13 Dashboard -->
+    <string name="dash_greeting_morning">Good morning,</string>
+    <string name="dash_greeting_afternoon">Good afternoon,</string>
+    <string name="dash_greeting_evening">Good evening,</string>
+    <string name="dash_notifications">Notifications</string>
+    <string name="dash_settings">Settings</string>
+    <string name="dash_connected">Connected</string>
+    <string name="dash_offline">Offline</string>
+    <string name="dash_pair_vehicle_label">Open Pair Your Vehicle</string>
+    <string name="dash_no_vehicle">No vehicle paired</string>
+    <string name="dash_no_vehicle_body">Pair your vehicle to see live fuel, odometer and trip readings here.</string>
+    <string name="dash_odo">ODO METER</string>
+    <string name="dash_trip_a">TRIP A</string>
+    <string name="dash_trip_b">TRIP B</string>
+    <string name="dash_fuel">FUEL</string>
+    <string name="dash_fuel_empty">E</string>
+    <string name="dash_fuel_full">F</string>
+    <string name="dash_fuel_reserve">RESERVE</string>
+    <string name="dash_quick_actions">QUICK ACTIONS</string>
+    <string name="dash_navigate">Navigate</string>
+    <string name="dash_navigate_sub">Turns on your cluster</string>
+    <string name="dash_pair">Pair</string>
+    <string name="dash_pair_sub">Find your scooter</string>
+    <string name="dash_connected_sub">Tap to manage</string>
+    <string name="dash_stats">Stats</string>
+    <string name="dash_safety">Safety</string>
+    <string name="dash_service">Service</string>
+    <string name="dash_profile">Profile</string>
+    <string name="dash_next_service">Next Service</string>
+    <string name="dash_overdue">OVERDUE</string>
+    <string name="dash_due_soon">DUE SOON</string>
+    <string name="dash_no_baseline">Add your last service to schedule it</string>
+    <string name="dash_due_now">Due now</string>
+
+    <!-- 20 Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_general">General</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_appearance_sub">Theme, accent colour and text size</string>
+    <string name="settings_units">Units</string>
+    <string name="settings_units_sub">How distances are shown in the app</string>
+    <string name="settings_autonav">Auto start navigation</string>
+    <string name="settings_autonav_sub">Relay turns to the cluster as soon as a route begins</string>
+    <string name="settings_bluetooth">Bluetooth</string>
+    <string name="settings_autoconnect">Auto connect</string>
+    <string name="settings_forget">Forget this vehicle</string>
+    <string name="settings_forget_sub">Stops reconnecting until you pair again</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_ride_notifs">Ride notifications</string>
+    <string name="settings_ride_notifs_sub">Summaries when a ride ends</string>
+    <string name="settings_service_reminders">Service reminders</string>
+    <string name="settings_service_reminders_sub">Warn me as a service falls due</string>
+    <string name="settings_connection_alerts">Connection alerts</string>
+    <string name="settings_connection_alerts_sub">Tell me when the vehicle connects or drops</string>
+    <string name="settings_permissions">Permissions</string>
+    <string name="settings_app_permissions">App permissions</string>
+    <string name="settings_app_permissions_sub">Bluetooth, location and notifications</string>
+    <string name="settings_app_info">App info in Android settings</string>
+    <string name="settings_app_info_sub">The system page, including battery and background use</string>
+    <string name="settings_privacy">Privacy</string>
+    <string name="settings_terms">Terms &amp; Conditions</string>
+    <string name="settings_about">About</string>
+    <string name="settings_app_version">App version</string>
+
+    <!-- 22 Appearance -->
+    <string name="appearance_theme">Theme</string>
+    <string name="appearance_follow_phone">Follow your phone\'s setting</string>
+    <string name="appearance_always_light">Always light</string>
+    <string name="appearance_always_dark">Always dark</string>
+    <string name="appearance_text_size">Text size</string>
+    <string name="appearance_default">Default</string>
+    <string name="appearance_preview">PREVIEW</string>
+    <string name="appearance_preview_body">Body text looks like this.</string>
+    <string name="appearance_accent">Accent colour</string>
+    <string name="nav_turn_arrow">Next turn</string>
+    <string name="appearance_colour_mix">Colour mix</string>
+    <string name="appearance_colour_mix_none">No mix: buttons use the accent colour. Pick a mix for its soft gradient; tap an accent colour to go back.</string>
+    <string name="appearance_colour_mix_on">%1$s on buttons and as the accent.</string>
+    <string name="appearance_button_style">Button style</string>
+    <string name="appearance_button_solid">Solid</string>
+    <string name="appearance_button_solid_sub">Soft colour fill</string>
+    <string name="appearance_button_glass">Glass</string>
+    <string name="appearance_button_glass_sub">Tinted see-through fill with a coloured rim</string>
+    <string name="appearance_button_outline">Outline</string>
+    <string name="appearance_button_outline_sub">Coloured border, clear fill</string>
+    <string name="appearance_preview_button">Navigate</string>
+
+    <!-- 17 Notifications -->
+    <string name="notifs_title">Notifications</string>
+    <string name="notifs_mark_all">Mark all read</string>
+    <string name="notifs_clear">Clear</string>
+    <string name="notifs_clear_title">Clear all notifications?</string>
+    <string name="notifs_clear_body">This removes every entry from this list. It cannot be undone.</string>
+    <string name="notifs_clear_confirm">Clear all</string>
+    <string name="notifs_cancel">Cancel</string>
+    <string name="notifs_empty">You\'re all caught up</string>
+    <string name="notifs_empty_body">Service reminders, pairing updates and ride summaries will show up here.</string>
+    <string name="notifs_today">Today</string>
+    <string name="notifs_yesterday">Yesterday</string>
+    <string name="notifs_label_call">CALL</string>
+    <string name="notifs_label_missed">MISSED CALL</string>
+    <string name="notifs_label_message">MESSAGE</string>
+    <string name="notifs_unread">Unread</string>
+    <string name="notifs_just_now">Just now</string>
+
+    <!-- 23 About -->
+    <string name="about_title">About</string>
+    <string name="about_information">Information</string>
+    <string name="about_whats_new">What\'s new</string>
+    <string name="about_tagline">Turn-by-turn navigation on your scooter\'s cluster.</string>
+    <string name="about_version">VERSION</string>
+    <string name="about_build">BUILD</string>
+    <string name="about_built_with">Built with \u2764\ufe0f for riders.</string>
+
+    <!-- Permission catalogue (PermissionsController) -->
+    <string name="perm_bluetooth">Bluetooth</string>
+    <string name="perm_bluetooth_desc">Connect to your vehicle via BLE 5.0</string>
+    <string name="perm_bluetooth_why">Required to exchange data between your vehicle\'s instrument cluster and this app, so directions can appear on the cluster.</string>
+    <string name="perm_location">Location</string>
+    <string name="perm_location_desc">Required for turn-by-turn navigation</string>
+    <string name="perm_location_why">Required for real-time turn-by-turn navigation on the cluster. Android also blocks Bluetooth scanning entirely without it, so your scooter cannot be found until this is on.</string>
+    <string name="perm_notifications">Notifications</string>
+    <string name="perm_notifications_desc">Ride alerts and service reminders</string>
+    <string name="perm_notifications_why">Lets RideConnectX show the connection notice while it is linked to your vehicle, plus service reminders and ride summaries.</string>
+    <string name="perm_signal">Phone status</string>
+    <string name="perm_signal_desc">Show your signal strength on the vehicle cluster</string>
+    <string name="perm_signal_why">Required to read your signal strength so it can be drawn on the cluster next to the Bluetooth glyph, the same as the official app. Refused, the cluster simply shows no bars.</string>
+
+    <string name="perm_contacts">Contacts</string>
+    <string name="perm_contacts_desc">Pick emergency contacts, and show caller names on the cluster</string>
+    <string name="perm_contacts_why">Lets you choose an emergency contact from your phone, and lets the cluster show a caller\'s name instead of a bare number. Contacts are read on this phone and never leave it.</string>
+    <string name="perm_photos">Photos and media</string>
+    <string name="perm_photos_desc">Set your profile picture</string>
+    <string name="perm_photos_why">Lets you set your rider profile picture. On Android 14 and later you can allow only selected photos rather than your whole gallery — the app works either way.</string>
+
+    <!-- 21 Profile -->
+    <string name="profile_change_photo">Change photo</string>
+    <string name="profile_remove_photo">Remove photo</string>
+    <string name="profile_photo_title">Profile picture</string>
+
+    <!-- 22 Appearance — surface style -->
+    <string name="appearance_surface">Surface style</string>
+    <string name="appearance_surface_flat_sub">Solid cards. The classic look.</string>
+    <string name="appearance_surface_glass_sub">Translucent panels that let the background show through</string>
+
+    <!-- 19 Safety -->
+    <string name="safety_title">Safety</string>
+    <string name="safety_sec_ride">Ride Safety</string>
+    <string name="safety_sec_accident">If you have an accident</string>
+    <string name="safety_sec_contacts">Emergency Contacts</string>
+    <string name="safety_contacts_max">You have the maximum of %1$d emergency contacts. Remove one to add another.</string>
+    <string name="safety_choose_contacts">Choose from contacts</string>
+    <string name="safety_enter_manually">Enter a number manually</string>
+    <string name="safety_share_location">Share my location</string>
+    <string name="safety_no_fix">No location fix yet — check that location is on.</string>
+    <string name="safety_emergency">EMERGENCY</string>
+    <string name="safety_sos">SOS</string>
+    <string name="safety_tap_for_help">TAP FOR HELP</string>
+    <string name="safety_sos_reaches">SOS reaches %1$s first.</string>
+    <string name="safety_sos_no_contact">Add an emergency contact so SOS has someone to reach.</string>
+    <string name="safety_sos_enabled">SOS button enabled</string>
+    <string name="safety_get_help_now">Get help now</string>
+    <string name="safety_dialer_note">RideConnectX opens your dialer — it does not place calls for you, so press call when you are ready.</string>
+    <string name="safety_call_name">Call %1$s</string>
+    <string name="safety_call_emergency">Call emergency services</string>
+    <string name="safety_getting_fix">Getting an accurate fix…</string>
+    <string name="safety_waiting_permission">Waiting for location permission…</string>
+    <string name="safety_waiting_permission_sub">Allow location — sharing continues automatically</string>
+    <string name="safety_turn_on_location">Turn on location…</string>
+    <string name="safety_turn_on_location_sub">Switch it on — sharing continues automatically</string>
+    <string name="safety_location_denied">Location permission is needed to share where you are.</string>
+    <string name="safety_waiting_gps">Waiting for GPS to settle — this takes a few seconds</string>
+    <string name="safety_sends_map_link">Sends a map link with how accurate it is</string>
+    <string name="safety_approx_location">Location is set to Approximate, so a shared position can be a street or two out. Tap to allow precise location.</string>
+    <string name="safety_close">Close</string>
+    <string name="safety_helmet_reminder">Helmet reminder</string>
+    <string name="safety_helmet_desc">Prompt me to put my helmet on when a ride starts.</string>
+    <string name="safety_speed_awareness">Speed awareness</string>
+    <string name="safety_speed_desc">Your scooter does not transmit speed, so RideConnectX cannot warn you about it. Watch the cluster.</string>
+    <string name="safety_ride_tips">RIDE TIPS</string>
+    <string name="safety_tip_1">Check tyre pressure and brakes before a long ride.</string>
+    <string name="safety_tip_2">Set your route before you move — never read the phone while riding.</string>
+    <string name="safety_tip_3">Keep your headlight on; it is what makes you visible in traffic.</string>
+    <string name="safety_tip_4">Ride outside the blind spots of cars and trucks.</string>
+    <string name="safety_emergency_instructions">Emergency instructions</string>
+    <string name="safety_tap_collapse">Tap to collapse</string>
+    <string name="safety_first_aid_open">First aid quick guide — tap to open</string>
+    <string name="safety_medical_disclaimer">This is general guidance, not medical advice. Call emergency services on %1$s if anyone is hurt.</string>
+    <string name="safety_aid_1">Get out of traffic if you can move safely, and switch on hazard lights.</string>
+    <string name="safety_aid_2">Call emergency services before anything else if anyone is injured.</string>
+    <string name="safety_aid_3">Do not remove an injured rider\'s helmet unless they cannot breathe.</string>
+    <string name="safety_aid_4">Do not move someone with a possible neck or back injury.</string>
+    <string name="safety_aid_5">Apply firm pressure to bleeding with a clean cloth.</string>
+    <string name="safety_aid_6">Photograph the scene, the vehicles and the number plates.</string>
+    <string name="safety_aid_7">Exchange names, numbers and insurance details; note any witnesses.</string>
+    <string name="safety_make_sos_contact">Make SOS contact</string>
+    <string name="safety_edit">Edit</string>
+    <string name="safety_delete">Delete</string>
+    <string name="safety_no_contact_title">No emergency contact yet</string>
+    <string name="safety_no_contact_desc">Add at least one. Without it, SOS can only reach emergency services.</string>
+    <string name="safety_add_contact">Add Emergency Contact</string>
+    <string name="safety_edit_contact">Edit Contact</string>
+    <string name="safety_name">Name</string>
+    <string name="safety_name_placeholder">Who to contact</string>
+    <string name="safety_name_error">Enter a name of 2–30 letters (space, - and _ allowed).</string>
+    <string name="safety_phone">Phone number</string>
+    <string name="safety_phone_placeholder">Including country code</string>
+    <string name="safety_phone_error">Enter 10–15 digits, with + only at the start.</string>
+    <string name="safety_duplicate_error">%1$s already has this number.</string>
+    <string name="safety_limit_error">You already have %1$d emergency contacts. Remove one first.</string>
+    <string name="safety_save_contact">Save Contact</string>
+    <string name="safety_remove_q">Remove %1$s?</string>
+    <string name="safety_remove_primary_warn">This is your SOS contact. Removing it hands SOS to whoever is left.</string>
+    <string name="safety_remove_desc">They will no longer appear in your emergency contacts.</string>
+    <string name="safety_keep">Keep</string>
+    <string name="safety_remove">Remove</string>
+    <string name="safety_offer_share">Offer to share location</string>
+    <string name="safety_offer_share_desc">Adds a map link to the SOS sheet. Nothing is sent until you choose to.</string>
+
+    <!-- 18 Service -->
+    <string name="service_title">Service</string>
+    <string name="service_upcoming_tasks">Upcoming Tasks</string>
+    <string name="service_maintenance_history">Maintenance History</string>
+    <string name="service_add_record">Add Service Record</string>
+    <string name="service_next_service">NEXT SERVICE</string>
+    <string name="service_not_scheduled">Not scheduled yet</string>
+    <string name="service_overdue">Overdue</string>
+    <string name="service_due_soon">Due soon</string>
+    <string name="service_on_schedule">On schedule</string>
+    <string name="service_intro">Add your last service below and RideConnectX will count the next one from it — %1$s or %2$d days, whichever comes first.</string>
+    <string name="service_over">%1$s over</string>
+    <string name="service_remaining">REMAINING</string>
+    <string name="service_days_left">DAYS LEFT</string>
+    <string name="service_last">Last %1$s</string>
+    <string name="service_due">Due %1$s</string>
+    <string name="service_connect_note">Connect to your vehicle to count down by distance — until then this counts by date only.</string>
+    <string name="service_every">Every %1$s</string>
+    <string name="service_due_label">due</string>
+    <string name="service_in">in %1$s</string>
+    <string name="service_edit_task_cd">Edit %1$s</string>
+    <string name="service_add_task">Add a task</string>
+    <string name="service_edit">Edit</string>
+    <string name="service_delete">Delete</string>
+    <string name="service_no_records">No service records yet</string>
+    <string name="service_no_records_desc">Tap to add your last service — the next one gets scheduled automatically.</string>
+    <string name="service_edit_record">Edit Service Record</string>
+    <string name="service_date">Service date</string>
+    <string name="service_date_future_error">A service cannot be dated in the future.</string>
+    <string name="service_centre">Service centre</string>
+    <string name="service_centre_placeholder">Where it was serviced</string>
+    <string name="service_find_nearby">Find nearby on Maps</string>
+    <string name="service_centre_error">Enter the centre\'s name (3–60 characters, with letters). The reading goes in Odometer below.</string>
+    <string name="service_odometer">Odometer (km)</string>
+    <string name="service_odometer_error">Enter the odometer reading.</string>
+    <string name="service_odometer_min_error">Must be at least %1$s — the odometer cannot go backwards.</string>
+    <string name="service_last_known">Last known reading: %1$s</string>
+    <string name="service_odometer_max_error">Must be at most %1$s — a later reading is already lower.</string>
+    <string name="service_odometer_range">For this date: between %1$s and %2$s</string>
+    <string name="service_odometer_at_least">For this date: at least %1$s</string>
+    <string-array name="service_note_suggestions">
+        <item>General service</item>
+        <item>Engine oil change</item>
+        <item>Air filter cleaned</item>
+        <item>Brake pads replaced</item>
+        <item>Spark plug replaced</item>
+        <item>Battery checked</item>
+        <item>Tyres checked</item>
+        <item>Washing</item>
+    </string-array>
+    <string name="service_notes">Notes (optional)</string>
+    <string name="service_notes_placeholder">What was done</string>
+    <string name="service_save_record">Save Record</string>
+    <string name="service_cancel">Cancel</string>
+    <string name="service_edit_task">Edit task</string>
+    <string name="service_task_name">What is it</string>
+    <string name="service_task_name_placeholder">Engine oil, chain lube, air filter…</string>
+    <string name="service_task_interval">How often (km)</string>
+    <string name="service_task_error">Give it a name of 2–30 characters (with letters) and a distance greater than zero.</string>
+    <string name="service_save">Save</string>
+    <string name="service_remove_task">Remove this task</string>
+    <string name="service_delete_record_q">Delete this record?</string>
+    <string name="service_delete_record_desc">This cannot be undone, and the next service is counted from your latest record.</string>
+    <string name="service_keep">Keep</string>
+    <string name="service_reading_at_time">Reading at the time</string>
+
+    <string name="perm_bt_off">Bluetooth is switched off on this phone.</string>
+    <string name="perm_bt_turn_on">Turn on Bluetooth</string>
+    <string name="perm_loc_off">Location services are switched off. Android needs them to find your vehicle.</string>
+    <string name="pair_loc_off">Location services are off. Android needs them to find your vehicle.</string>
+    <string name="perm_loc_open">Open location settings</string>
+    <string name="perm_perm_denied">Permanently denied. Open Android Settings to enable.</string>
+    <string name="perm_enable">Enable</string>
+    <string name="perm_requesting">Requesting…</string>
+    <string name="perm_granted">Granted</string>
+    <string name="perm_denied_retry">Denied — Tap Retry</string>
+    <string name="perm_open_settings">Open Settings</string>
+    <string name="pair_unknown_vehicle">Unknown vehicle</string>
+    <string name="pair_connected">Connected</string>
+    <string name="pair_connecting">Connecting…</string>
+    <string name="pair_ready">Ready to pair</string>
+    <string name="pair_connect">Connect</string>
+    <string name="pair_connect_named">Connect to %1$s</string>
+    <string name="notifs_open">Open</string>
+    <string name="signin_cloud_off">Cloud sign-in is off in this test build</string>
+    <string name="notif_access_why">Required to read Google Maps\' turn-by-turn notification and relay each turn to the cluster, and to show calls and messages. Caller and sender names (never message text) are shown on the scooter cluster and kept in the Notifications page on this phone. Call and message notifications from any app can reach the cluster. SMS and call-log permissions are not needed.</string>
+    <string name="ride_log_share_warning">This log contains caller/sender names and destinations. Share it only with someone you trust.</string>
+    <!-- GPS rides -->
+    <string name="live_title">RIDING NOW</string>
+    <string name="live_location_off">Location is off, so this ride is not being recorded. Turn on location for the app in Settings to record rides.</string>
+    <string name="live_gps_weak">Waiting for a good GPS signal</string>
+    <string name="live_distance">Distance</string>
+    <string name="live_speed">Speed</string>
+    <string name="live_duration">Time</string>
+    <string name="live_avg">Avg speed</string>
+    <string name="live_max">Max speed</string>
+    <string name="ride_badge_pending">PENDING</string>
+    <string name="ride_badge_kept">KEPT</string>
+    <string name="ride_badge_phone_only">KEPT · PHONE ONLY</string>
+    <string name="ride_detail_title">Ride</string>
+    <string name="ride_gone">This ride is no longer available.</string>
+    <string name="ride_expiry_note">This ride will be deleted automatically 30 days after it ended unless you keep it.</string>
+    <string name="ride_days_left">%1$d days left</string>
+    <string name="ride_keep">Keep ride</string>
+    <string name="ride_delete">Delete ride</string>
+    <string name="ride_delete_title">Delete this ride?</string>
+    <string name="ride_delete_body">This can\'t be undone.</string>
+    <string name="ride_delete_confirm">Delete</string>
+    <string name="ride_keep_signed_in">Kept rides upload to your account when you sign in; max 10 in the cloud.</string>
+    <string name="ride_keep_guest">Stored on phone only. Sign in to upload kept rides to your account (max 10 in the cloud).</string>
+    <string name="ride_phone_only_full">Stored on phone only: the cloud already holds 10 rides.</string>
+    <string name="route_none">No route recorded</string>
+    <string name="route_desc">Route map. Starts at the green dot, ends at the red dot. %1$s kilometres.</string>
+</resources>

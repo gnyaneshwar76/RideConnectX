@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+      Theme the app runs under once Compose takes over. windowBackground is set
+      to the brand background (light here, dark in values-night) so there is no
+      white flash between the splash and the first frame of UI.
+    -->
+    <style name="Theme.RideConnectX" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/rcx_window_bg</item>
+    </style>
+
+    <!--
+      Launch theme. Replaces the stock Android launch icon with the RCX
+      monogram, so the app opens straight into brand. Android 12+ uses this
+      natively; core-splashscreen back-ports it down to API 28.
+    -->
+    <style name="Theme.RideConnectX.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/rcx_splash_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.RideConnectX</item>
+    </style>
+</resources>

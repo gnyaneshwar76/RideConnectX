@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Legacy Bluetooth permissions (Android 11 and below) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <!-- Modern Bluetooth permissions (Android 12+) -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="31" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Location permissions (Required for scanning on Android 11 and below) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- BLE Feature Declaration -->
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+    <!-- Not needed to install: scanning falls back to the permission screens, calls are optional. -->
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
+    <!-- Foreground Service Permission -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- Live metre countdown: phone GPS while navigating, screen off included. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Notification Permission (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      Signal bars on the instrument cluster. Without this the heartbeat reports
+      zero bars rather than guessing, so the app still works if it is refused.
+    -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!--
+      Contacts and photos, asked for with Android's own dialog.
+
+      These were removed for a while, on the reasoning that the system pickers
+      hand back only the item the rider taps and so need no permission. That is
+      true, but the rider's decision is that the app should ask the same way it
+      asks for Bluetooth — the familiar system dialog, with Android 14's
+      "Allow all / Select photos" choice — rather than an in-app explanation
+      followed by a picker appearing on its own. Declared, requested at the
+      point of use, and shown on the permission screen like every other one.
+
+      READ_MEDIA_VISUAL_USER_SELECTED is what turns the photo dialog into the
+      three-way choice; without it Android 14+ offers only all-or-nothing.
+    -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!--
+      Deliberately NOT declared: READ_SMS, READ_CALL_LOG and CALL_PHONE. The
+      official app takes all three. RideConnectX lights the message and
+      missed-call lamps from notification access instead — the same information
+      from a less invasive permission — and the Safety screen opens the dialer
+      rather than placing calls itself. Adding them would also make the app
+      subject to Play's restricted-permission review for no gain.
+    -->
+
+    <!--
+      Backup is off. With it on and no backup rules declared, Room (emergency
+      contacts, notifications, rides), the DataStore preferences and the avatar
+      all went into Google cloud backup and device-to-device transfer. Nothing
+      here needs backing up: the profile is restored from Firestore on sign-in,
+      and the rest is a cache of the vehicle.
+    -->
+    <application
+        android:name=".RideConnectXApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.RideConnectX">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.RideConnectX.Splash"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".data.ble.BleForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|location" />
+
+        <!--
+            Reads Google Maps' navigation notification so turn-by-turn can be
+            relayed to the vehicle cluster. Maps exposes no public API for live
+            guidance; this is the supported route. The rider must enable it
+            explicitly in Android's "Notification access" settings.
+        -->
+        <service
+            android:name=".data.nav.MapsNotificationListener"
+            android:exported="false"
+            android:label="RideConnectX Navigation"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Settings → Ride testing → Share ride log: hands the log file to the
+             share sheet without exposing any other file. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/ride_log_paths" />
+        </provider>
+    </application>
+</manifest>

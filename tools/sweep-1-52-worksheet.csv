@@ -1,0 +1,53 @@
+Code,Predicted,Source,Observed,Confirmed
+1,turn left,APK icon (mappls 0),TURN LEFT - road-shaped: vertical shaft then bends left (differs from 18 flat arrow),YES photographed 18 Aug 22:01
+2,slight left,APK icon (mappls 1),SLIGHT LEFT - junction-shaped: shaft then diagonal head up-left,YES photographed 18 Aug 22:06
+3,sharp left,APK icon (mappls 2),curved shaft bending LEFT with head up-left diagonal (curving bear-left; NOT a hairpin),YES photographed 18 Aug 22:08 - APK predicted sharp left; does NOT match
+4,turn right,APK icon (mappls 3),TURN RIGHT - junction-shaped: shaft then bends right (mirror of 1),YES photographed 18 Aug 22:09
+5,slight right,APK icon (mappls 4),shaft rising then head turns back pointing DOWN-RIGHT (sharp right / hairpin),YES photographed 18 Aug 22:10
+6,sharp right,APK icon (mappls 5),curved shaft bending RIGHT with head up-right diagonal (mirror of 3),YES photographed 18 Aug 22:12
+7,U-turn,APK icon (mappls 6),U-TURN - up then over the top and back down; head points DOWN (2nd U-turn glyph; cf 39),YES photographed 18 Aug 22:14
+8,straight,APK icon (mappls 7),straight UP arrow (same glyph as 40),YES photographed 18 Aug 22:00
+9,roundabout,APK icon (mappls 8/9/10),RING with filled centre - destination/target bullseye (LIKELY THE DESTINATION MARKER),YES photographed 18 Aug 22:20
+10,destination flag?,APK icon (mappls 75) - weak,,
+11,left at crossroads,APK icon (mappls 11),,
+12,right at crossroads,APK icon (mappls 12),,
+13,destination on left,APK icon (mappls 13),,
+14,destination on right,APK icon (mappls 14),,
+15,sharp right,APK arc-set (mappls 53),down-right diagonal arrow,YES photographed 18 Aug 21:59 - completes 8-point compass
+16,U-turn,APK arc-set (mappls 54),straight DOWN arrow (reverse/back; NOT the curved U-turn of 39),YES photographed 18 Aug 21:56
+17,sharp left,APK arc-set (mappls 55),down-left diagonal arrow,YES photographed 18 Aug 21:58
+18,turn left,APK arc-set (mappls 56),left - flat horizontal arrow,YES photographed 18 Aug 21:54
+19,SLIGHT LEFT - the missing one,APK arc-set (mappls 57),SLIGHT LEFT - diagonal up-left arrow (the icon we thought did not exist),YES photographed 18 Aug 21:52
+20,roundabout exit left-down,APK icon (mappls 65),,
+21,roundabout exit left,APK icon (mappls 66),,
+22,roundabout exit left-up,APK icon (mappls 67),,
+23,roundabout exit straight,APK icon (mappls 68),ROUNDABOUT circle with exit arrow pointing STRAIGHT UP through it,YES photographed 18 Aug 22:02
+24,roundabout exit right-up,APK icon (mappls 69),,
+25,roundabout exit right,APK icon (mappls 70),,
+26,roundabout exit right-down,APK icon (mappls 71),,
+27,ramp/fork left-up,APK icon (mappls 19),,
+28,ramp/fork right-up,APK icon (mappls 20),,
+29,ramp/fork left-down,APK icon (mappls 17),,
+30,ramp/fork right-down,APK icon (mappls 18),,
+31,keep left (Y-fork),PHOTOGRAPHED 11 Aug,keep left (Y-fork),LOCKED
+32,keep right (Y-fork),PHOTOGRAPHED 11 Aug,keep right (Y-fork),LOCKED
+33,crossroads straight,PHOTOGRAPHED 11 Aug,crossroads straight,LOCKED
+34,sharp left (hairpin),PHOTOGRAPHED 11 Aug,sharp left (hairpin),LOCKED
+35,turn right (curved),PHOTOGRAPHED 11 Aug,turn right (curved),LOCKED
+36,sharp right (hairpin),PHOTOGRAPHED 11 Aug,sharp right (hairpin),LOCKED
+37,turn left (curved),PHOTOGRAPHED 11 Aug,turn left (curved),LOCKED
+38,left with lane bar,PHOTOGRAPHED 4 Aug,left with lane bar,likely
+39,U-turn,PHOTOGRAPHED 11 Aug,U-turn,LOCKED
+40,straight,PHOTOGRAPHED 11 Aug,straight,LOCKED
+41,slight right,PHOTOGRAPHED 11 Aug,slight right,LOCKED
+42,turn right (flat arrow),PHOTOGRAPHED 11 Aug,turn right (flat arrow),LOCKED
+43,ferry (boat),PHOTOGRAPHED 11 Aug,ferry (boat),LOCKED
+44,keep left (two lane bars),PHOTOGRAPHED 11 Aug,keep left (two lane bars),LOCKED
+45,roundabout,PHOTOGRAPHED 11 Aug,roundabout,LOCKED
+46,BLANK - the no-GPS placeholder,source: i = 46 when GPS unlocked,blank,confirmed
+47,roundabout exit right,APK icon (mappls 59),,
+48,roundabout exit right-up,APK icon (mappls 60),,
+49,roundabout exit straight,APK icon (mappls 61),,
+50,roundabout exit left,APK icon (mappls 62),,
+51,roundabout exit left-down,APK icon (mappls 63),,
+52,roundabout exit left-down,APK icon (mappls 64),,

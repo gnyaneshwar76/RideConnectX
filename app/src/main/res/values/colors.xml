@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand palette — mirrors presentation/theme/Color.kt -->
+    <color name="rcx_blue">#2B7FFF</color>
+    <color name="rcx_cyan">#00D4FF</color>
+
+    <!--
+      Window + splash background. Light values live here, dark values in
+      values-night/colors.xml, so the launch background never flashes the
+      wrong colour before Compose takes over.
+    -->
+    <color name="rcx_window_bg">#EEF2FF</color>
+    <color name="rcx_splash_bg">#EEF2FF</color>
+
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

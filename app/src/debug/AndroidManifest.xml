@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+        Debug-only. Lets the navigation pipeline be driven from adb without
+        Google Maps and without a live route, so everything upstream of the BLE
+        write can be verified off the bike. Not present in a release build.
+    -->
+    <application>
+        <!--
+            Exported so `adb shell am broadcast` reaches it, but guarded by
+            DUMP. The shell UID holds DUMP, so the turn-testing workflow is
+            unchanged; DUMP is signature|privileged, so an ordinary app on the
+            phone cannot obtain it and can no longer drive the cluster's turn
+            arrows, alert lamps or the process-global distance encoding.
+        -->
+        <receiver
+            android:name="com.eshwar.rideconnectx.debug.NavTestReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="com.eshwar.rideconnectx.TEST_NAV" />
+                <action android:name="com.eshwar.rideconnectx.TEST_NAV_STOP" />
+                <action android:name="com.eshwar.rideconnectx.TEST_CODE" />
+                <action android:name="com.eshwar.rideconnectx.TEST_BATT" />
+                <action android:name="com.eshwar.rideconnectx.TEST_SIG" />
+                <action android:name="com.eshwar.rideconnectx.TEST_FLAGS" />
+                <action android:name="com.eshwar.rideconnectx.TEST_KMSTYLE" />
+                <action android:name="com.eshwar.rideconnectx.TEST_CALL" />
+                <action android:name="com.eshwar.rideconnectx.TEST_MSG" />
+                <action android:name="com.eshwar.rideconnectx.TEST_MISSED" />
+                <action android:name="com.eshwar.rideconnectx.TEST_SCAN_EMPTY" />
+                <action android:name="com.eshwar.rideconnectx.TEST_DEVICE_NAME" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+            compose-ui-tooling contributes PreviewActivity as exported with no
+            permission, and its only guard is FLAG_DEBUGGABLE — which a debug
+            build satisfies. Any app on the phone could then launch it into this
+            process with a `composable` extra, and its parameter-provider lookup
+            calls Class.forName with initialize=true, running the static
+            initializer of any class it names. The debug build is the one that
+            lives on the riding phone, so it is removed here rather than trusted.
+        -->
+        <activity
+            android:name="androidx.compose.ui.tooling.PreviewActivity"
+            tools:node="remove" />
+
+        <!-- Same story: the ui-test-manifest host activity. -->
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            tools:node="remove" />
+    </application>
+</manifest>

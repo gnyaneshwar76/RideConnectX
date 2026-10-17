@@ -1,0 +1,205 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>RideConnectX Privacy Policy</title><style>:root{--bg:#fff;--fg:#1d1d1f;--muted:#555;--line:#e5e5ea;--accent:#0a66c2}
+@media (prefers-color-scheme:dark){:root{--bg:#0b0f1a;--fg:#e8eaf0;--muted:#a0a6b4;--line:#263042;--accent:#5aa2ff}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 -apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:32px 16px}a{color:var(--accent)}
+table{border-collapse:collapse;width:100%;display:block;overflow-x:auto}td,th{border:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}
+blockquote{margin:0;padding:8px 16px;border-left:4px solid var(--line);color:var(--muted)}
+footer{margin-top:40px;color:var(--muted);font-size:.9rem;border-top:1px solid var(--line);padding-top:12px}</style></head>
+<body><main><h1>Privacy Policy — RideConnectX</h1>
+<p><strong>Last updated:</strong> 10 October 2026
+<strong>Contact:</strong> <a href="mailto:the project's GitHub Issues page">the project's GitHub Issues page</a></p>
+<p>RideConnectX (&quot;the app&quot;) connects your phone to your scooter&#39;s instrument
+cluster over Bluetooth Low Energy, so the cluster can show turn-by-turn
+directions, a notification lamp and your name. This policy explains what the app
+collects, where it goes, and what stays on your phone.</p>
+<blockquote>
+<p>This policy was written from an audit of what the code actually does. It is
+not legal advice.</p>
+</blockquote>
+<hr>
+<h2>1. The short version</h2>
+<ul>
+<li>Most of what the app knows <strong>never leaves your phone.</strong></li>
+<li>Nothing is sold, and nothing is shared with advertisers or data brokers.</li>
+<li>Notification content is read on-device and relayed to your scooter. It is
+<strong>never</strong> uploaded.</li>
+<li>The Bluetooth link to the cluster is not encrypted: caller and sender names cross the air in plain text. Names are shown on the cluster and kept in the Notifications page on the phone. Message text is read only to count and alert; it is never stored or uploaded. A name with no Latin letters is shown as the fixed label &quot;New message&quot;.</li>
+<li>While your scooter is connected, the app records your ride with GPS (precise
+location). The route of a finished ride is saved on your phone. If you do not
+keep the ride, it is deleted automatically 30 days after it ended. Only if you
+sign in <strong>and tap Keep</strong> is the ride, with its route, also saved to your
+account, for at most 10 rides. You can delete a ride at any time (section 7).
+One more exception: when you look up nearby service centres, your approximate
+position is sent to the OpenStreetMap Overpass service (see section 5).</li>
+<li>Guests upload nothing.</li>
+<li>You can <strong>delete your account and its data from inside the app</strong> at any time.</li>
+</ul>
+<hr>
+<h2>2. What is stored on your phone only</h2>
+<p>None of this is uploaded. Each item is tied to the account that created it and
+is not shown to any other account signed in on the same phone:</p>
+<table>
+<thead>
+<tr>
+<th>Data</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Emergency contacts (name and number you add)</td>
+<td>So SOS can offer someone to call — works without internet</td>
+</tr>
+<tr>
+<td>Service records, refuelling records</td>
+<td>The service screens</td>
+</tr>
+<tr>
+<td>Ride history (signed-in users also have a summary copy in their account, section 3)</td>
+<td>The ride screens</td>
+</tr>
+<tr>
+<td>Notification history (the caller or sender name and the word &quot;Call&quot;, &quot;Missed call&quot; or &quot;New message&quot;; never the message text)</td>
+<td>The in-app notification list</td>
+</tr>
+<tr>
+<td>Paired vehicle address and name</td>
+<td>To reconnect to your scooter</td>
+</tr>
+<tr>
+<td>App settings and appearance</td>
+<td>Your preferences</td>
+</tr>
+<tr>
+<td>Ride recorder file (only if you switch <strong>Settings → Ride testing → Ride recorder</strong> on): each Google Maps instruction such as &quot;Turn left onto MG Road&quot;, the turn sent to the cluster, the Maps destination text, the caller or sender name of calls and messages (never the message text), and route start and end times. It is a file in the app&#39;s own storage folder on the phone, never uploaded, and you can delete it from the same screen.</td>
+<td>Checking that the right turns reach the cluster</td>
+</tr>
+</tbody></table>
+<p>Backup is disabled, so none of this is copied into Google cloud backup or moved
+in a device-to-device transfer.</p>
+<p><strong>Emergency contacts are other people&#39;s details.</strong> Only add people who have
+agreed to be your emergency contact.</p>
+<h2>3. What is stored in your account</h2>
+<p>If you sign in, the following is saved to Firebase (Google Cloud) under your
+account, and security rules make it readable only by you:</p>
+<ul>
+<li>Your name, email address and sign-in method</li>
+<li>Rider name, nickname and city</li>
+<li>Selected vehicle model and colour</li>
+<li>Account dates (when the account was created and last signed in) and a default settings record (theme, units, voice guidance, auto-connect, map type, route avoidances, notifications). These defaults are created when you first sign in; the app does not currently change them.</li>
+<li>Profile photo, if you set one, stored at a reduced size</li>
+<li>Your scooter&#39;s last odometer, trip and fuel readings, saved when you sign
+out so they are there when you sign back in</li>
+<li>Rides you <strong>keep</strong> (maximum 10): start and end time, distance, duration, top
+and average speed, ride title, vehicle and the route (a list of GPS points,
+which is precise location history). Rides you do not keep are never uploaded.
+Deleting a ride in the app also deletes its cloud copy.</li>
+</ul>
+<p>You can use the app as a <strong>guest</strong>, in which case nothing is uploaded at all.</p>
+<h2>4. Permissions, and exactly what each is for</h2>
+<table>
+<thead>
+<tr>
+<th>Permission</th>
+<th>What the app does with it</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Bluetooth / nearby devices</strong></td>
+<td>Find and connect to your scooter&#39;s cluster. Used for nothing else.</td>
+</tr>
+<tr>
+<td><strong>Notification access</strong></td>
+<td>Read the notification that Google Maps posts while navigating, so the next turn can be drawn on your cluster; and detect that a call or message arrived so the cluster&#39;s lamp lights. For calls and messages (phone dialer, WhatsApp, SMS and similar apps) the app reads the caller or sender name and, for messages, the message text, and may show them on your cluster. <strong>Content is processed on the phone and sent only to your scooter.</strong> It is never uploaded.</td>
+</tr>
+<tr>
+<td><strong>Location</strong></td>
+<td>Sharing your position when <em>you</em> tap share on the SOS screen; filling in your city on your profile; while you navigate, comparing your GPS position with the next turn to count down the distance on the cluster (on the phone only, not stored); recording your ride route while the scooter is connected (saved on the phone; uploaded only for rides you keep while signed in); and finding nearby service centres (section 5). On Android 11 and older, Android also requires it for Bluetooth scanning. The app records a route only for the ride while the scooter is connected, and you decide whether to keep it.</td>
+</tr>
+<tr>
+<td><strong>Contacts</strong></td>
+<td>Only when you tap to pick an emergency contact. The app keeps that one contact&#39;s name and number.</td>
+</tr>
+<tr>
+<td><strong>Photos</strong></td>
+<td>Only when you choose a profile picture.</td>
+</tr>
+<tr>
+<td><strong>Phone state</strong></td>
+<td>Only to read your mobile signal strength, which is shown as bars on the cluster. The app does not read your calls, call log or phone number.</td>
+</tr>
+<tr>
+<td><strong>Notifications (post)</strong></td>
+<td>Show the ongoing notification Android requires while the app holds the Bluetooth link.</td>
+</tr>
+</tbody></table>
+<p>The app deliberately does <strong>not</strong> request permission to read SMS, read your call
+log, or place calls. Calls open your dialer with the number filled in; you press
+the call button.</p>
+<h2>5. Other services, and no analytics</h2>
+<p>The app has <strong>no analytics, no advertising and no advertising identifier.</strong>
+It uses these outside services:</p>
+<ul>
+<li><strong>Firebase Authentication and Cloud Firestore (Google)</strong> store your sign-in
+and the account data in section 3, only when you sign in. Google Sign-In is
+used if you choose it. Google&#39;s handling is described at
+<a href="https://firebase.google.com/support/privacy">https://firebase.google.com/support/privacy</a>.</li>
+<li><strong>OpenStreetMap Overpass (overpass-api.de)</strong>: when you pick a service centre,
+your position, rounded to about 1 km, and a search radius are sent to find places nearby.
+Like any web request, the service also sees your IP address. Nothing is
+linked to your account. Map data &copy; OpenStreetMap contributors, available
+under the Open Database Licence: <a href="https://www.openstreetmap.org/copyright">https://www.openstreetmap.org/copyright</a>.</li>
+<li><strong>Firebase App Check (Google)</strong> confirms to Firebase that requests come from this app, not from a copy or script. It exchanges an attestation token with Google; it carries no personal data from your profile.</li>
+<li><strong>Android Geocoder</strong>: turns coordinates into a place or city name. On most
+phones this is done by Google&#39;s location service, under Google&#39;s terms.</li>
+</ul>
+<h2>6. What is never collected</h2>
+<ul>
+<li>The text of your messages or calls. A caller or sender name is relayed to the
+cluster and kept in the in-app notification list on your phone; the message
+text is neither stored nor uploaded</li>
+<li>Ride log is off by default and stays off until you switch it on.</li>
+<li>A history of where you have travelled outside rides: routes are recorded only while the scooter is connected, and are uploaded only for rides you keep</li>
+<li>Your address book as a whole</li>
+<li>Payment information — the app takes no payments</li>
+</ul>
+<h2>7. Your choices</h2>
+<ul>
+<li><strong>Use it as a guest</strong> — nothing is uploaded.</li>
+<li><strong>Sign out</strong> — your last readings are saved to your account, and your profile
+and readings are removed from the phone.</li>
+<li><strong>Delete local data</strong> — wipes rides, notifications, service records, emergency
+contacts, the paired vehicle, cached readings, the ride log, your avatar and
+profile preferences from the phone.</li>
+<li><strong>Delete your account</strong> — in the app: <strong>Profile → Delete account</strong>. After you
+confirm it is you, your cloud data (profile, photo, readings, rides), your account, and that account&#39;s data on the phone are permanently
+deleted. Without the app, request deletion at
+<a href="https://rideconnectx-89528dd3.web.app/delete-account.html">https://rideconnectx-89528dd3.web.app/delete-account.html</a>.</li>
+<li><strong>Revoke any permission</strong> at any time in Android Settings. The app degrades
+rather than breaking: without location, SOS tells you it cannot share a
+position instead of inventing one.</li>
+</ul>
+<h2>8. Your rights</h2>
+<p>Under India&#39;s Digital Personal Data Protection Act, 2023, and similar laws
+elsewhere, you can ask to access, correct or erase your personal data, and to
+withdraw consent. Most of this you can do yourself in the app; for anything
+else, email the contact at the top. Requests are answered within 30 days. If
+you are not satisfied, you may complain to the Data Protection Board of India.</p>
+<h2>9. Children</h2>
+<p>The app is not directed at children under 13 and is not intended for them. It is
+a companion to a motor vehicle.</p>
+<h2>10. Data retention</h2>
+<p>Local data stays until you delete it, sign out, or uninstall. Account data stays
+until you delete your account, and is then removed immediately.</p>
+<h2>11. Changes</h2>
+<p>If this policy changes materially, the app will say so before the change takes
+effect. The date at the top always reflects the current version.</p>
+<hr>
+<h2>Notice</h2>
+<p>RideConnectX is an independent application. It is not produced, endorsed,
+certified or supported by any vehicle manufacturer or Google LLC. Trademarks
+belong to their respective owners.</p>
+<p><strong>Safety:</strong> what the app draws on your cluster is an aid, not a substitute for
+your attention to the road or to the vehicle&#39;s own instruments. Do not interact
+with your phone while riding.</p>
+<footer><a href="index.html">RideConnectX</a> · <a href="privacy.html">Privacy policy</a> · <a href="delete-account.html">Delete account</a></footer></main></body></html>

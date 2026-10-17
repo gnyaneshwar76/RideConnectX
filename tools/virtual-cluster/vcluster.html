@@ -1,0 +1,152 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Virtual cluster</title>
+<style>body{font-family:sans-serif;margin:12px;background:#eee}textarea{width:100%;height:110px;font-family:monospace}
+.c{display:inline-block;vertical-align:top;margin:8px;background:#fff;padding:6px}pre{font-size:12px;margin:4px 0 0}</style>
+<h3>Virtual cluster (own decoder, no app code)</h3>
+<p>Paste TX lines (<code>TX model=ACCESS_LCD type=0x31 hex=...</code>) or lines that are only a 60-hex frame, or load a file.
+Other text (e.g. "Bytes sent ...") is ignored unless <label><input type="checkbox" id="bare"> bare: also decode frames in lines with other text</label>.
+Marks: P proven on a real cluster (Access only), D documented, U unknown.</p>
+<textarea id="in"></textarea><br>
+Model default <select id="model"><option>ACCESS_LCD</option><option>SCOOTER_LCD</option><option>MOTORCYCLE</option><option>ELECTRIC</option><option>TFT</option></select>
+Layout <select id="layout"><option value="">auto from model</option><option>LCD</option><option>TFT</option></select>
+<input type="file" id="file"> <button id="go">Decode</button>
+<div id="out"></div>
+<script>
+const NAMES={1:'junction turn left',2:'junction slight left',3:'curve left',4:'junction turn right',5:'hairpin right',6:'curve right',7:'U-turn',8:'straight',9:'destination',15:'arrow down-right',16:'arrow back',17:'arrow down-left',18:'arrow left',19:'slight left',20:'roundabout exit sharp left',21:'roundabout exit left',22:'roundabout exit slight left',23:'roundabout exit straight',24:'roundabout exit slight right',25:'roundabout exit right',26:'roundabout exit sharp right',27:'ramp/fork left-up',28:'ramp/fork right-up',29:'ramp/fork down left',30:'ramp/fork down right',31:'fork keep left',32:'fork keep right',33:'crossroads',34:'sharp left',35:'curve right',36:'sharp right',37:'curve left',38:'left with lane bar',39:'U-turn',40:'straight',41:'slight right',42:'right',43:'ferry',44:'keep left lanes',45:'roundabout',46:'blank'};
+const TYPES={0x31:'NAV',0x32:'CALL',0x33:'HEARTBEAT',0x34:'MISSED CALL',0x35:'MESSAGE',0x36:'RIDER PROFILE',0x37:'TELEMETRY'};
+const MW={P:'PROVEN',D:'DOCUMENTED',U:'UNKNOWN'};
+const MODELS=['ACCESS_LCD','SCOOTER_LCD','MOTORCYCLE','ELECTRIC','TFT'];
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const ch=x=>String.fromCharCode(x);
+const allFF=a=>a.every(x=>x===0xFF);
+const isDig=a=>a.length>0&&a.every(x=>x>=48&&x<=57);
+const str=a=>a.map(ch).join('');
+function txt(a){let o='';for(const x of a){if(x===0||x===0xFF)break;if(x>=32&&x<127)o+=ch(x)}return o}
+function codeMark(c,m){if([10,11,12,13,14,29,30].includes(c)||c>=47)return'U';if([27,28,38].includes(c)||m!=='ACCESS_LCD')return'D';return'P'}
+function dist(a){if(allFF(a))return[null,'U'];const s=str(a);let m;
+ if(m=/^(\d{4})M$/.exec(s))return[+m[1]+' m','P'];
+ if(m=/^(\d\d\.\d)K$/.exec(s))return[parseFloat(m[1])+' km','U'];
+ if(m=/^(\d{4})K$/.exec(s))return[+m[1]+' km','U'];
+ return['raw '+JSON.stringify(s),'U']}
+const hex2=n=>n.toString(16).toUpperCase().padStart(2,'0');
+function decode(fr,model){
+ const A=model==='ACCESS_LCD'?'P':'D';const r={fields:[],upd:{},type:null,cs_ok:false};
+ const F=(n,v,m)=>r.fields.push([n,v,m]);
+ if(fr.length!==30||fr[0]!==0xA5||fr[29]!==0x7F){F('frame','bad shape (need 30 bytes, A5 ... 7F), len='+fr.length,'U');return r}
+ let s=0;for(let i=1;i<28;i++)s=(s+fr[i])&255;
+ const exp=model==='ACCESS_LCD'?(255-s)&255:s;
+ r.cs_stored=fr[28];r.cs_expected=exp;r.cs_ok=fr[28]===exp;const t=fr[1];r.type=t;const u=r.upd;
+ const side=(v,map)=>map[ch(v)]||'raw 0x'+hex2(v);
+ if(t===0x31){const c=fr[2];F('maneuver',c+' = '+(NAMES[c]||'not in table'),codeMark(c,model));
+  const[d,mk]=dist(fr.slice(4,9));F('next turn distance',d||'blank',d?mk:'U');
+  const s2=str(fr.slice(9,15));const m=/^([ \d]\d)(\d\d)(AM|PM)$/.exec(s2);
+  const clock=m?m[1].trim().padStart(2,'0')+':'+m[2]+' '+m[3]:null;F('clock',clock||'raw '+JSON.stringify(s2),m?A:'U');
+  const[rd]=dist(fr.slice(18,23));F('remaining distance',rd||'blank',rd?'P':'U');
+  const g=ch(fr[23]);F('gps status',{1:'GPS ok',0:'airplane mode',4:'GPS off'}[g]||'raw '+g,'D');
+  F('nav active',fr[24]===0x31?'yes':'raw 0x'+hex2(fr[24]),A);
+  u.nav={code:c,dist:d,clock:clock,rem:rd,gps:g}}
+ else if(t===0x33){const b=ch(fr[2]);
+  F('phone battery bars',{5:'blank',4:'3 bars'}[b]||('0123'.includes(b)?b+' bars':'raw '+b),A);
+  F('charging',side(fr[3],{Y:'yes (top bar blinks)',N:'no'}),A);
+  const sp=fr.slice(4,7);const spd=allFF(sp)?null:(isDig(sp)?+str(sp):null);
+  F('speed',spd!==null?spd+' km/h':'blank',spd===null?'D':'U');
+  const sg=ch(fr[7]);F('signal bars','0123'.includes(sg)?sg:'raw '+sg,(sg==='3'&&model==='ACCESS_LCD')?'P':'U');
+  const c=fr.slice(8,14);const clock=isDig(c)?str(c.slice(0,2))+':'+str(c.slice(2,4))+':'+str(c.slice(4,6)):null;
+  F('clock',clock||'blank',clock?A:'D');F('message flag',ch(fr[14]),'U');F('missed-call flag',ch(fr[15]),'U');
+  if(model!=='ACCESS_LCD'&&fr[21]!==0xFF){F('weather code',fr[21],'D');F('temperature',(fr[22]-115)+' F','D')}
+  u.hb={batt:b,chg:ch(fr[3])==='Y',speed:spd,sig:sg,clock:clock}}
+ else if(t===0x32){const n=txt(fr.slice(2,22))||'(empty)';F('caller',n,'P');
+  F('channel',side(fr[22],{N:'phone',W:'WhatsApp'}),'D');F('state',side(fr[23],{1:'ringing',2:'answered'}),'D');
+  u.call={name:n,ch:ch(fr[22]),st:ch(fr[23])}}
+ else if(t===0x34){const n=txt(fr.slice(4,24));F('missed count',fr[3],'D');F('caller',n||'(none)','U');
+  F('channel',side(fr[24],{N:'phone',W:'WhatsApp'}),'D');u.missed={n:fr[3],name:n}}
+ else if(t===0x35){const n=txt(fr.slice(5,25));F('new alert',side(fr[3],{Y:'new',N:'recount/reset'}),'D');
+  F('unread count',fr[4],'D');F('sender',n||'(none)',n?'P':'U');F('type',side(fr[25],{N:'SMS',W:'WhatsApp',X:'calendar'}),'D');
+  u.msg={n:fr[4],name:n,ty:ch(fr[25])}}
+ else if(t===0x36){const n=txt(fr.slice(2,22));const f=ch(fr[27]);const N=n.toUpperCase();
+  const line=f==='R'?'WELCOME '+N:f==='F'?N+' CONNECTED':N;
+  F('rider name',n,'P');F('greeting flag',{R:'R same cluster',F:'F new cluster'}[f]||'raw '+f,'P');F('cluster text',line,'P');u.profile=line}
+ else if(t===0x37){const d=fr.slice(2,23);u.tele={};
+  if(!isDig(d))F('telemetry','digits expected in bytes 2-22','U');
+  else{const o=+str(d.slice(0,9)),a=+str(d.slice(9,15))/10,b=+str(d.slice(15,21))/10;
+   F('odometer',o+' km',A);F('trip A',a.toFixed(1)+' km',A);F('trip B',b.toFixed(1)+' km',A);Object.assign(u.tele,{odo:o,a:a,b:b})}
+  const fb=ch(fr[24]);
+  if(model==='ELECTRIC'){F('battery',(fr[24]-64)+' %','D');u.tele.bat=fr[24]-64}
+  else{F('fuel bar',fb,(fb==='5'&&model==='ACCESS_LCD')?'P':'U');u.tele.fuel=fb}}
+ else F('type','unknown type 0x'+hex2(t),'U');
+ return r}
+function apply(st,dec){for(const k in dec.upd){const v=dec.upd[k];
+ if(v&&typeof v==='object'&&st[k]&&typeof st[k]==='object')Object.assign(st[k],v);else st[k]=(v&&typeof v==='object')?Object.assign({},v):v}}
+function screenLines(s){const nav=s.nav||{},hb=s.hb||{};const c=nav.code;
+ const arrow=(c===undefined||c===46)?'[blank]':'['+(NAMES[c]||'code '+c)+']';const bt=hb.batt||'-';
+ const o=[(s.profile||'')+'  '+(nav.clock||hb.clock||'--:--')+'  signal '+(hb.sig||'-')+'  battery '+({5:'blank',4:'3'}[bt]||bt)+(hb.chg?' CHG':''),
+  arrow+'  '+(nav.dist||'---'),'to destination: '+(nav.rem||'---')+'   speed: '+(hb.speed!=null?hb.speed+' km/h':'---')];
+ if(s.call)o.push('CALL    '+s.call.name+' ('+({N:'phone',W:'WhatsApp'}[s.call.ch]||'?')+', '+({1:'ringing',2:'answered'}[s.call.st]||'?')+')');
+ if(s.msg)o.push('MESSAGE '+(s.msg.name||'-')+'  unread '+s.msg.n);
+ if(s.missed)o.push('MISSED  '+s.missed.n+'  '+s.missed.name);
+ if(s.tele){const t=s.tele;o.push('ODO '+(t.odo??'-')+'  A '+(t.a??'-')+'  B '+(t.b??'-')+'  '+(t.bat!==undefined?'batt '+t.bat+'%':'fuel '+(t.fuel??'-')))}
+ return o}
+function frameText(i,fr,model,lay,dec,st){
+ const L=['frame '+i+'  model='+model+'  layout='+lay,'hex  '+fr.map(hex2).join('')];
+ if(dec.type===null){L.push('NOT A VALID FRAME: '+dec.fields[0][1]);return L.join('\n')}
+ L.push('type 0x'+hex2(dec.type)+' '+(TYPES[dec.type]||'?')+'   checksum '+(dec.cs_ok?'OK':'BAD')+' (stored '+hex2(dec.cs_stored)+', expected '+hex2(dec.cs_expected)+')');
+ for(const[n,v,m]of dec.fields)L.push('  '+n.padEnd(20)+' '+String(v).padEnd(34)+' ['+MW[m]+']');
+ L.push('screen:');return L.concat(screenLines(st).map(x=>'  | '+x)).join('\n')}
+// own-drawn vectors, 100x100 box, y down
+const L={1:[[[[50,95],[50,50],[15,50]],1,9]],2:[[[[50,95],[50,55],[25,30]],1,9]],3:[[[[50,95],[50,70],[40,45],[15,30]],1,9]],19:[[[[75,85],[25,25]],1,9]],
+ 34:[[[[65,95],[65,40],[40,40],[40,75]],1,9]],27:[[[[50,95],[50,60],[30,25]],1,9],[[[50,60],[68,28]],0,5]],29:[[[[50,10],[50,45],[30,80]],1,9]],
+ 31:[[[[50,95],[50,62],[25,25]],1,9],[[[50,62],[75,25]],0,5]],15:[[[[25,25],[75,80]],1,9]],18:[[[[85,50],[15,50]],1,9]],
+ 39:[[[[30,95],[30,40],[45,20],[65,40],[65,75]],1,9]],40:[[[[50,95],[50,15]],1,9]],16:[[[[50,15],[50,90]],1,9]]};
+L[38]=L[1].concat([[[[88,95],[88,40]],0,6]]);L[44]=L[31].concat([[[[12,95],[12,70]],0,6],[[[88,95],[88,70]],0,6]]);L[33]=L[40].concat([[[[25,50],[75,50]],0,6]]);
+const ALIAS={7:39,8:40,37:3},MIR={4:1,6:3,35:3,41:19,36:34,5:34,28:27,32:31,30:29,42:18,17:15};
+const EXIT={20:[-1,1],21:[-1,0],22:[-1,-1],23:[0,-1],24:[1,-1],25:[1,0],26:[1,1]};
+function line(p,head,w,ink){let o='<polyline points="'+p.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')+'" fill="none" stroke="'+ink+'" stroke-width="'+w+'" stroke-linecap="round" stroke-linejoin="round"/>';
+ if(head){const[x0,y0]=p[p.length-2],[x1,y1]=p[p.length-1];const d=Math.hypot(x1-x0,y1-y0)||1,ux=(x1-x0)/d,uy=(y1-y0)/d,bx=x1-ux*18,by=y1-uy*18;
+  o+='<polygon points="'+[x1+ux*4,y1+uy*4,bx-uy*13,by+ux*13,bx+uy*13,by-ux*13].map(v=>v.toFixed(1)).join(',')+'" fill="'+ink+'"/>'}return o}
+function arrow(c,ink){
+ if(EXIT[c]||c===45){let o='<circle cx="50" cy="60" r="18" fill="none" stroke="'+ink+'" stroke-width="8"/>'+line([[50,100],[50,78]],0,8,ink);
+  if(EXIT[c]){let[dx,dy]=EXIT[c];const n=Math.hypot(dx,dy);dx/=n;dy/=n;o+=line([[50+dx*18,60+dy*18],[50+dx*42,60+dy*42]],1,8,ink)}return o}
+ if(c===9)return'<circle cx="50" cy="50" r="34" fill="none" stroke="'+ink+'" stroke-width="8"/><circle cx="50" cy="50" r="12" fill="'+ink+'"/>';
+ if(c===43)return'<polygon points="12,62 88,62 72,84 28,84" fill="'+ink+'"/><polygon points="50,18 78,54 50,54" fill="'+ink+'"/>';
+ c=ALIAS[c]||c;const mir=c in MIR,base=MIR[c]||c;if(!L[base])return null;let o='';
+ for(let[p,h,w]of L[base]){if(mir)p=p.map(q=>[100-q[0],q[1]]);o+=line(p,h,w,ink)}return o}
+function svg(st,layout){const tft=layout==='TFT';
+ const[bg,ink,dim,acc]=tft?['#0b1220','#e8f0ff','#5d6b85','#4fc3f7']:['#cfd9b4','#18230f','#8d9a76','#18230f'];
+ const bh=tft?300:260,k=tft?1.6:1;const nav=st.nav||{},hb=st.hb||{};
+ const T=(x,y,sz,t,a,col)=>'<text x="'+x+'" y="'+y+'" font-size="'+sz+'" text-anchor="'+(a||'start')+'" fill="'+(col||ink)+'" font-family="monospace" font-weight="bold">'+esc(t)+'</text>';
+ const o=['<svg xmlns="http://www.w3.org/2000/svg" width="'+480*k+'" height="'+bh*k+'" viewBox="0 0 480 '+bh+'"><rect width="480" height="'+bh+'" rx="14" fill="'+bg+'"/>'];
+ o.push(T(12,24,14,st.profile||''),T(240,26,20,nav.clock||hb.clock||'--:--','middle'));
+ const n=/^\d$/.test(hb.sig||'')?+hb.sig:0;
+ for(let i=0;i<3;i++){const h=8+6*i;o.push('<rect x="'+(370+i*11)+'" y="'+(28-h)+'" width="8" height="'+h+'" fill="'+(i<n?ink:dim)+'"/>')}
+ const bt=hb.batt||'-',nb={0:0,1:1,2:2,3:3,4:3}[bt]||0;
+ o.push('<rect x="425" y="10" width="40" height="18" fill="none" stroke="'+ink+'" stroke-width="2"/>');
+ if(bt!=='5')for(let i=0;i<nb;i++)o.push('<rect x="'+(428+i*12)+'" y="13" width="10" height="12" fill="'+ink+'"/>');
+ if(hb.chg)o.push(T(445,44,11,'CHG','middle',acc));
+ o.push('<g transform="translate(14,44) scale(1.3)"><rect width="100" height="100" fill="none" stroke="'+dim+'"/>');
+ const c=nav.code;if(c!==undefined&&c!==46){o.push(arrow(c,ink)||T(50,62,36,c,'middle'))}
+ o.push('</g>',T(170,108,54,nav.dist||'---'),T(170,140,16,'DEST '+(nav.rem||'---'),'start',acc),T(170,164,16,'SPEED '+(hb.speed!=null?hb.speed+' km/h':'---')));
+ let y=196;
+ if(st.call){o.push(T(12,y,15,'CALL '+st.call.name+(st.call.ch==='W'?' (WhatsApp)':'')+(st.call.st==='2'?' answered':' ringing'),'start',acc));y+=22}
+ if(st.msg){o.push(T(12,y,15,'MSG '+(st.msg.name||'-')+' ('+st.msg.n+')'));y+=22}
+ if(st.missed){o.push(T(12,y,15,'MISSED '+st.missed.n+' '+st.missed.name));y+=22}
+ if(tft&&st.tele){const t=st.tele;o.push(T(12,285,14,'ODO '+(t.odo??'-')+' km  A '+(t.a??'-')+'  B '+(t.b??'-')+'  '+(t.bat!==undefined?'BATT '+t.bat+'%':'FUEL '+(t.fuel??'-')),'start',dim))}
+ o.push('</svg>');return o.join('')}
+function parse(text,dm,bare){const out=[];const re=/A5(?:\s?[0-9A-Fa-f]{2}){29}/i;
+ for(const ln of text.split(/\r?\n/)){const mm=/model=(\w+)/.exec(ln);const m0=mm&&MODELS.includes(mm[1].toUpperCase())?mm[1].toUpperCase():dm;
+  let m=null;
+  if(ln.includes('TX model=')){const h=/hex=([0-9A-Fa-f\s]+)/.exec(ln);m=h?re.exec(h[1]):null}
+  else if(bare||/^\s*A5(?:\s?[0-9A-Fa-f]{2}){29}\s*$/i.test(ln))m=re.exec(ln);
+  if(m){const s=m[0].replace(/\s/g,'');const b=[];for(let i=0;i<s.length;i+=2)b.push(parseInt(s.substr(i,2),16));out.push([m0,b])}}
+ return out}
+function run(){const text=document.getElementById('in').value,dm=document.getElementById('model').value,lo=document.getElementById('layout').value,bare=document.getElementById('bare').checked;
+ const st={};let html='',i=0;
+ for(const[model,fr]of parse(text,dm,bare)){i++;const lay=lo||((model==='ACCESS_LCD'||model==='SCOOTER_LCD')?'LCD':'TFT');
+  const dec=decode(fr,model);if(dec.type!==null)apply(st,dec);
+  html+='<div class="c">'+svg(st,lay)+'<pre>'+esc(frameText(i,fr,model,lay,dec,st))+'</pre></div>'}
+ document.getElementById('out').innerHTML=html||'No frames found.'}
+document.getElementById('go').onclick=run;
+document.getElementById('file').onchange=e=>{const f=e.target.files[0];if(f)f.text().then(t=>{document.getElementById('in').value=t;run()})};
+document.getElementById('in').value='A5 31 04 FF 30 31 30 30 4D 30 36 31 33 50 4D FF FF FF 30 32 39 39 4D 31 31 FF FF FF D9 7F\nA5 33 32 59 FF FF FF 33 31 30 35 31 33 38 4E 4E FF FF FF FF FF FF FF FF FF FF FF FF 4F 7F\nA5 32 47 72 61 6E 64 20 4D 6F 74 68 65 72 00 00 00 00 00 00 00 00 4E 31 FF FF FF FF D7 7F';
+run();
+</script>

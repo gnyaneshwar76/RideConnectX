@@ -1,0 +1,111 @@
+rules_version = '2';
+
+// RideConnectX — Firestore security rules
+//
+// Model: every document lives under users/{uid} and is readable and writable
+// only by that signed-in user. There is no shared or public data, so the
+// default is deny and each rule opens exactly one path.
+//
+// Deploy: Firebase Console -> Firestore Database -> Rules -> paste -> Publish.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Blocks a client from rewriting createdAt or forging another user's uid.
+    function profileImmutableFieldsIntact(uid) {
+      return !request.resource.data.keys().hasAny(['uid'])
+        || request.resource.data.uid == uid;
+    }
+
+    // profile.createdAt is set once, on create, and can never be rewritten.
+    function createdAtUnchanged() {
+      return !('profile' in resource.data)
+        || !('createdAt' in resource.data.profile)
+        || request.resource.data.profile.createdAt == resource.data.profile.createdAt;
+    }
+
+    // Size and shape limits (CHK-13). The app only ever writes these four maps;
+    // anything else, or an oversized field, is refused. Photo is a 256 px JPEG
+    // (about 30 KB, base64 under 100 000 characters); 200 000 leaves room.
+    function userDocShapeOk() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['uid', 'profile', 'settings', 'scooter', 'preferences'])
+        && (!('profile' in d) || (d.profile is map
+              && (!('photoBase64' in d.profile)
+                  || (d.profile.photoBase64 is string && d.profile.photoBase64.size() <= 200000))
+              && (!('riderName' in d.profile) || (d.profile.riderName is string && d.profile.riderName.size() <= 100))
+              && (!('nickname' in d.profile) || (d.profile.nickname is string && d.profile.nickname.size() <= 100))
+              && (!('location' in d.profile) || (d.profile.location is string && d.profile.location.size() <= 100))))
+        && (!('settings' in d) || (d.settings is map && d.settings.size() <= 30))
+        && (!('scooter' in d) || (d.scooter is map && d.scooter.size() <= 30))
+        && (!('preferences' in d) || (d.preferences is map && d.preferences.size() <= 30));
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+
+      // Creation happens once, on first sign-in.
+      allow create: if isOwner(uid) && profileImmutableFieldsIntact(uid) && userDocShapeOk();
+
+      // Updates are merges from the app (settings, scooter, preferences).
+      allow update: if isOwner(uid) && profileImmutableFieldsIntact(uid)
+        && createdAtUnchanged() && userDocShapeOk();
+
+      // Account deletion is initiated by the user from Profile.
+      allow delete: if isOwner(uid);
+
+      // Saved places are not in the app yet; kept closed until they are.
+      match /favorites/{placeId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && request.resource.data.size() <= 20;
+      }
+
+      // Kept GPS rides: doc id must be r0..r9, so the cloud can never hold more than 10.
+      match /rides/{rideId} {
+        allow read: if isOwner(uid);
+
+        // Create-only: a ride cannot be rewritten later (update is false).
+        allow create: if isOwner(uid)
+          && rideId.matches('^r[0-9]$')
+          && request.resource.data.keys().hasAll(['startedAt', 'endedAt', 'distanceMeters', 'route'])
+          && request.resource.data.keys().hasOnly(['startedAt', 'endedAt', 'distanceMeters',
+               'durationMillis', 'topSpeedKmh', 'avgSpeedKmh', 'title', 'vehicleId', 'route', 'source'])
+          && request.resource.data.startedAt is int
+          && request.resource.data.endedAt is int
+          && request.resource.data.endedAt >= request.resource.data.startedAt
+          && request.resource.data.distanceMeters is int
+          && request.resource.data.distanceMeters >= 0
+          && request.resource.data.distanceMeters <= 5000000
+          && (!('durationMillis' in request.resource.data)
+              || (request.resource.data.durationMillis is int
+                  && request.resource.data.durationMillis >= 0
+                  && request.resource.data.durationMillis <= 86400000))
+          && (!('topSpeedKmh' in request.resource.data)
+              || (request.resource.data.topSpeedKmh is int
+                  && request.resource.data.topSpeedKmh >= 0 && request.resource.data.topSpeedKmh <= 150))
+          && (!('avgSpeedKmh' in request.resource.data)
+              || (request.resource.data.avgSpeedKmh is int
+                  && request.resource.data.avgSpeedKmh >= 0 && request.resource.data.avgSpeedKmh <= 150))
+          && request.resource.data.route is string
+          && request.resource.data.route.size() <= 60000
+          && (!('source' in request.resource.data) || request.resource.data.source == 'gps')
+          && (!('title' in request.resource.data)
+              || (request.resource.data.title is string && request.resource.data.title.size() <= 100))
+          && (!('vehicleId' in request.resource.data)
+              || (request.resource.data.vehicleId is string && request.resource.data.vehicleId.size() <= 50));
+
+        allow update: if false;
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // Anything not matched above is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

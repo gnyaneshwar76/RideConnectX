@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launcher icon background.
+
+  Matches the approved logo artwork, whose background is #080F1F, with a slight
+  lift toward the design system's card navy (#0E1E3D) so the tile reads with a
+  little depth instead of looking flat black on a dark home screen.
+
+  The launcher applies its own shape mask, so this is full bleed.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108"
+                android:type="linear">
+                <item android:offset="0" android:color="#FF0E1E3D" />
+                <item android:offset="1" android:color="#FF080F1F" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

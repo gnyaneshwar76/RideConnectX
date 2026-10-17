@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme window + splash background (DARK.bg / #070D1B). -->
+    <color name="rcx_window_bg">#070D1B</color>
+    <color name="rcx_splash_bg">#070D1B</color>
+</resources>

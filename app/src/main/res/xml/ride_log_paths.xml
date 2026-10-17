@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the app's external files folder, where ride-log.txt lives. -->
+<paths>
+    <external-files-path name="ride_log" path="." />
+</paths>

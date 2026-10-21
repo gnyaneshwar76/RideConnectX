@@ -1,7 +1,7 @@
 # Privacy Policy — RideConnectX
 
-**Last updated:** 10 October 2026
-**Contact:** the project's GitHub Issues page
+**Last updated:** 17 October 2026
+**Contact:** rideconnectx.app@gmail.com
 
 RideConnectX ("the app") connects your phone to your scooter's instrument
 cluster over Bluetooth Low Energy, so the cluster can show turn-by-turn
@@ -44,6 +44,7 @@ is not shown to any other account signed in on the same phone:
 | Ride history (signed-in users also have a summary copy in their account, section 3) | The ride screens |
 | Notification history (the caller or sender name and the word "Call", "Missed call" or "New message"; never the message text) | The in-app notification list |
 | Paired vehicle address and name | To reconnect to your scooter |
+| The email address you asked a sign-in link for, the time it was sent, and the times of your last link requests (to enforce a 10-minute link and 5 requests a day) | So opening the link on this phone finishes sign-in without typing it again |
 | App settings and appearance | Your preferences |
 | Ride recorder file (only if you switch **Settings → Ride testing → Ride recorder** on): each Google Maps instruction such as "Turn left onto MG Road", the turn sent to the cluster, the Maps destination text, the caller or sender name of calls and messages (never the message text), and route start and end times. It is a file in the app's own storage folder on the phone, never uploaded, and you can delete it from the same screen. | Checking that the right turns reach the cluster |
 
@@ -65,6 +66,7 @@ account, and security rules make it readable only by you:
 - Profile photo, if you set one, stored at a reduced size
 - Your scooter's last odometer, trip and fuel readings, saved when you sign
   out so they are there when you sign back in
+- Your last 10 sign-ins: time, sign-in method (Google, email and password, or email link), phone model, Android version and app version. No IP address, no location and no device ID. You can see them in Profile → Recent sign-ins, to spot a sign-in that was not you; older ones are deleted automatically. This is kept so you can check your account's security.
 - Rides you **keep** (maximum 10): start and end time, distance, duration, top
   and average speed, ride title, vehicle and the route (a list of GPS points,
   which is precise location history). Rides you do not keep are never uploaded.
@@ -95,12 +97,14 @@ It uses these outside services:
 
 - **Firebase Authentication and Cloud Firestore (Google)** store your sign-in
   and the account data in section 3, only when you sign in. Google Sign-In is
-  used if you choose it. Google's handling is described at
+  used if you choose it. Sign-in link, verification and password-reset emails
+  are sent from rideconnectx.app@gmail.com. Google's handling is described at
   <https://firebase.google.com/support/privacy>.
 - **OpenStreetMap Overpass (overpass-api.de)**: when you pick a service centre,
   your position, rounded to about 1 km, and a search radius are sent to find places nearby.
   Like any web request, the service also sees your IP address. Nothing is
-  linked to your account. Map data (c) OpenStreetMap contributors, available
+  linked to your account. This optional "service centres near me" lookup uses a
+  service we do not operate. Map data (c) OpenStreetMap contributors, available
   under the Open Database Licence: <https://www.openstreetmap.org/copyright>.
 - **Firebase App Check (Google)** confirms to Firebase that requests come from this app, not from a copy or script. It exchanges an attestation token with Google; it carries no personal data from your profile.
 - **Android Geocoder**: turns coordinates into a place or city name. On most
@@ -126,7 +130,7 @@ It uses these outside services:
   profile preferences from the phone.
 - **Delete your account** — in the app: **Profile → Delete account**. After you
   confirm it is you, your cloud data (profile, photo, readings, rides), your account, and that account's data on the phone are permanently
-  deleted. Without the app, request deletion at
+  deleted, including your sign-in history. Without the app, request deletion at
   <https://rideconnectx-89528dd3.web.app/delete-account.html>.
 - **Revoke any permission** at any time in Android Settings. The app degrades
   rather than breaking: without location, SOS tells you it cannot share a

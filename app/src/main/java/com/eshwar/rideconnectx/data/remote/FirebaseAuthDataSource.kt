@@ -17,7 +17,11 @@ import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
+import com.google.firebase.FirebaseTooManyRequestsException
+import com.google.firebase.auth.ActionCodeSettings
 import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.auth.FirebaseAuthException
+import com.eshwar.rideconnectx.domain.model.EmailLinkFlow
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -250,6 +254,48 @@ class FirebaseAuthDataSource @Inject constructor(
         return AuthResult.Failure(AuthError.EmailNotVerified(email))
     }
 
+    /**
+     * Email-link sign-in. The link opens https://[LINK_DOMAIN]/__/auth/links, which
+     * Android hands to this app through a verified app link (manifest + Hosting
+     * assetlinks.json). No setLinkDomain: Firebase refuses it on a default hosting domain.
+     */
+    fun isSignInLink(link: String): Boolean = authOrNull?.isSignInWithEmailLink(link) == true
+
+    suspend fun sendSignInLink(email: String): AuthResult = runCatching {
+        val settings = ActionCodeSettings.newBuilder()
+            .setUrl("https://$LINK_DOMAIN/finishSignIn")
+            .setHandleCodeInApp(true)
+            .setAndroidPackageName(context.packageName, false, null)
+            .build()
+        auth.sendSignInLinkToEmail(email.trim(), settings).await()
+        AuthResult.Success(UserSession())
+    }.getOrElse { e ->
+        val err = e.toAuthError()
+        val text = EmailLinkFlow.sendMessage((e as? FirebaseAuthException)?.errorCode, e.message)
+        // Network and too-many already have plain words; only raw Firebase text is replaced.
+        val quota = EmailLinkFlow.isQuotaExceeded((e as? FirebaseAuthException)?.errorCode, e.message)
+        AuthResult.Failure(if (quota || err is AuthError.Unknown || err is AuthError.InvalidCredentials) AuthError.Unknown(text) else err)
+    }
+
+    /** A link sign-in proves the address, so the account is verified at once. */
+    suspend fun signInWithEmailLink(email: String, link: String): AuthResult = runCatching {
+        val user = auth.signInWithEmailLink(email.trim(), link).await().user
+            ?: return AuthResult.Failure(AuthError.Unknown("Firebase returned no user."))
+        AuthResult.Success(user.toSession(LoginMethod.EMAIL_LINK))
+    }.getOrElse { e ->
+        val code = (e as? FirebaseAuthException)?.errorCode
+        val text = EmailLinkFlow.message(code)
+        AuthResult.Failure(
+            if (text != null) AuthError.LinkFailed(text, EmailLinkFlow.linkStillGood(code)) else e.toAuthError()
+        )
+    }
+
+    /** Firebase deletes only a fresh sign-in; an email-link account has no password to re-check. */
+    fun isSignInRecent(): Boolean {
+        val last = authOrNull?.currentUser?.metadata?.lastSignInTimestamp ?: return false
+        return System.currentTimeMillis() - last < 5 * 60_000L
+    }
+
     suspend fun sendPasswordReset(email: String): AuthResult = runCatching {
         auth.sendPasswordResetEmail(email.trim()).await()
         AuthResult.Success(UserSession())
@@ -285,8 +331,10 @@ class FirebaseAuthDataSource @Inject constructor(
     )
 
     private fun Throwable.toAuthError(): AuthError = when (this) {
+        is com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException -> AuthError.SignInTooOld
         is CloudNotConfiguredException -> AuthError.CloudNotConfigured
         is IOException -> AuthError.NoInternet
+        is FirebaseTooManyRequestsException -> AuthError.TooManyTries
         is FirebaseAuthWeakPasswordException ->
             AuthError.WeakPassword(com.eshwar.rideconnectx.domain.model.PasswordRules.RULE_TEXT)
         is FirebaseAuthUserCollisionException ->
@@ -298,10 +346,14 @@ class FirebaseAuthDataSource @Inject constructor(
         else -> {
             val msg = message.orEmpty()
             if (msg.contains("network", ignoreCase = true)) AuthError.NoInternet
+            else if (msg.contains("QUOTA_EXCEEDED") || msg.contains("TOO_MANY")) AuthError.TooManyTries
             else AuthError.Unknown(msg.ifBlank { "Something went wrong. Please try again." })
         }
     }
 }
+
+/** Firebase Hosting default domain: the email link and the app link both use it. */
+const val LINK_DOMAIN = "rideconnectx-89528dd3.firebaseapp.com"
 
 /** Thrown when Firebase was not initialised (no google-services.json in this build). */
 class CloudNotConfiguredException : IOException("Cloud sign-in is not configured in this build")

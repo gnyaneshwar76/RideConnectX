@@ -101,6 +101,21 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if isOwner(uid);
       }
+
+      // Recent sign-ins (Profile). Create-only; the app deletes all but the newest 10.
+      // No IP, location or device id: exactly these five fields, time set by the server.
+      match /logins/{loginId} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['time', 'method', 'device', 'android', 'app'])
+          && request.resource.data.keys().hasAll(['time', 'method', 'device', 'android', 'app'])
+          && request.resource.data.time == request.time
+          && request.resource.data.method in ['google', 'password', 'emailLink']
+          && request.resource.data.device is string && request.resource.data.device.size() <= 60
+          && request.resource.data.android is string && request.resource.data.android.size() <= 20
+          && request.resource.data.app is string && request.resource.data.app.size() <= 30;
+        allow update: if false;
+      }
     }
 
     // Anything not matched above is denied.

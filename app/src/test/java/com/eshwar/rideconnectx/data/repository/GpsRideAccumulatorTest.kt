@@ -78,11 +78,19 @@ class GpsRideAccumulatorTest {
         val r = a.finish("o")
         assertNotNull(r)
         assertEquals(1000, r!!.distanceMeters)
-        assertEquals(99_000L, r.durationMillis)  // first move to last move
+        assertEquals(100_000L, r.durationMillis)  // start of first move to last move
         assertEquals(36, r.avgSpeedKmh)
-        assertEquals(r.startedAt + 99_000L, r.endedAt)
+        assertEquals(r.startedAt + 100_000L, r.endedAt)
         assertEquals(r.endedAt + 30L * 24 * 3600 * 1000, r.expiresAt)
         assertTrue(r.route.isNotEmpty())
+    }
+
+    @Test fun liveAvgMatchesSpeedAndMaxNeverBelowAvg() {
+        val a = GpsRideAccumulator()
+        a.ride(4)                                // 3 moves of 10 m at 1 s: steady 36 km/h
+        val l = a.live(t0 + 3000L)
+        assertEquals(36, l.avgKmh)               // was 54: first segment's distance without its time
+        assertTrue(l.maxKmh >= l.avgKmh)
     }
 
     @Test fun shortRideIsDiscarded() {

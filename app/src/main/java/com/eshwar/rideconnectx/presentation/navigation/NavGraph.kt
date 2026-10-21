@@ -182,7 +182,9 @@ fun NavGraph(
                             SetupGate.mustReset(signedIn, profileDone, mergePending) -> authVm.resetUnfinishedSetup()
                             !signedIn -> authVm.dropUnfinishedSignIn()
                         }
-                        val destination = SetupGate.launchRoute(signedIn, profileDone, mergePending)
+                        // A sign-in link opened the app: straight to Sign In, which finishes it.
+                        val destination = if (!signedIn && authVm.emailLinkWaiting) Routes.SIGN_IN
+                            else SetupGate.launchRoute(signedIn, profileDone, mergePending)
                         navController.navigate(destination) {
                             popUpTo(Routes.SPLASH) { inclusive = true }
                         }

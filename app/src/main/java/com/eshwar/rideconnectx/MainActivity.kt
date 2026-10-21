@@ -64,6 +64,14 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         openKind.value = intent.getStringExtra(NotificationRepository.EXTRA_KIND)
+        offerEmailLink(intent)
+    }
+
+    /** An email sign-in link opened the app; Sign In finishes it. */
+    private fun offerEmailLink(intent: Intent?) {
+        val link = intent?.data?.toString() ?: return
+        EntryPointAccessors.fromApplication(applicationContext, com.eshwar.rideconnectx.core.di.AuthEntryPoint::class.java)
+            .authRepository().offerEmailLink(link)
     }
 
     override fun onStart() {
@@ -137,6 +145,7 @@ class MainActivity : ComponentActivity() {
         // No-ops when nothing was paired, or when the permission is missing.
         if (savedInstanceState == null) bleRepository.reconnectLastDevice()
         if (savedInstanceState == null) openKind.value = intent.getStringExtra(NotificationRepository.EXTRA_KIND)
+        if (savedInstanceState == null) offerEmailLink(intent)
 
         setContent {
             // Appearance is applied here so a theme change takes effect

@@ -27,17 +27,61 @@ without Firebase (no sign-in or cloud profile; BLE, navigation and local data wo
 |---|---|
 | `assembleDebug` | Emulator or dev phone, simulated scooter, debug-signed |
 | `assembleSmooth` | R8-optimised, debug-signed, for your own phone |
-| `assembleRelease -PreleaseTag=v0.9.0-beta` | Signed release, RideConnectX-v0.9.0-beta.apk + .sha256; needs your keystore; versionCode = (maj*10000+min*100+patch)*10 + rank (none 9, rc 7, beta 5, alpha 3) |
+| `assembleRelease` | R8 + resource shrink, not debuggable, logs stripped, no debug hooks, Play Integrity App Check. Gives an UNSIGNED `RideConnectX-v<version>-unsigned.apk`; sign it with the script below |
 
-## Release signing
-The app never ships a key. Create `keystore.properties` in the repo root
-(git-ignored):
+The version is set in `app/build.gradle.kts` (`versionName`, `versionCode`). Raise
+`versionCode` by 1 for every APK that must install over the previous one.
+
+## Release signing (owner)
+The release key is the owner's own keystore, kept outside the repo. Its password is
+never written in any file. Gradle does not sign the release; the script does.
+
+Run from the repo root, then type the key password when asked:
 ```
-storeFile=path/to/your.jks
-storePassword=...
-keyAlias=...
-keyPassword=...
+powershell -ExecutionPolicy Bypass -File tools\build-release.ps1
 ```
-Without it, `assembleRelease`/`bundleRelease` fail with a clear message.
-Generate a key with `keytool -genkeypair -v -keystore your.jks -alias rcx -keyalg RSA -keysize 2048 -validity 10000`.
-Keep the keystore and passwords outside the repo and back them up.
+Output: `app/build/outputs/apk/release/RideConnectX-v1.0.0.apk` and
+`RideConnectX-v1.0.0.apk.sha256`. The script prints the signer certificate at the end.
+
+What the script does:
+- Runs `assembleRelease`, then `apksigner` from the newest Android build-tools.
+- Asks for the password with a hidden prompt, puts it in an environment variable of
+  its own process only after Gradle is done, and clears it at the end, also on errors.
+- Options: `-KeyStore <path>` (default `..\RideConnectX-keys\rideconnectx-release.jks`
+  next to the repo folder), `-KeyAlias` (default `rideconnectx`).
+
+### Key rotation (why the old phone keeps its data)
+Builds up to 0.9.0 were signed with the Android debug key
+(`~/.android/debug.keystore`, alias `androiddebugkey`). Android only updates an app in
+place if the new APK is signed by the same key, or by a key the old key has approved.
+The script uses APK Signature Scheme v3 key rotation:
+- On the first run it creates `rideconnectx-lineage.bin` next to the keystore with
+  `apksigner rotate` (debug key -> release key). The file holds only public
+  certificates and signatures, no private key. It stays out of git.
+- Every APK is signed by both keys with `--lineage` and `--rotation-min-sdk-version 28`,
+  so every supported Android version (9+) sees the release key.
+- A phone with the debug-signed 0.9.0 updates with no uninstall and keeps its data.
+  A fresh install just sees the release key. Proven on the emulator with a throwaway key.
+- After that update, a debug-signed build (debug, smooth) can no longer be installed
+  over it: Android does not let the key go back. Install release builds only, or
+  uninstall first (this deletes the app data).
+- The debug keystore on this laptop is needed to sign. If it is lost, the lineage file
+  still lets new APKs update phones that already have 1.0.0, but not older ones.
+
+### Back up the key
+Copy these to a USB stick (and a second place), never to git or a cloud chat:
+- `rideconnectx-release.jks`
+- `rideconnectx-lineage.bin`
+- `~/.android/debug.keystore`
+Write the password on paper and keep it apart from the stick. If the release key or
+its password is lost, no future version can update the installed app.
+
+### Never commit
+`keystore.properties`, `*.jks`, `*.keystore`, `google-services.json`. The build does
+not read `keystore.properties` any more; do not create one with a password in it.
+
+### Your own fork
+Make your own key with
+`keytool -genkeypair -v -keystore your.jks -alias yourname -keyalg RSA -keysize 2048 -validity 10000`
+and run the script with `-KeyStore your.jks -KeyAlias yourname`. If you have no
+debug-signed installs to carry over, the debug signer in the lineage does no harm.

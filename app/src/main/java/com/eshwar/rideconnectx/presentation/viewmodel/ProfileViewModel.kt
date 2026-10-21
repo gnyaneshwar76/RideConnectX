@@ -65,6 +65,14 @@ class ProfileViewModel @Inject constructor(
     val vehicle: StateFlow<VehicleSelection> = vehicleRepository.selection
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VehicleSelection())
 
+    /** Profile -> Recent sign-ins. Null while loading; a failure is shown as "couldn't load". */
+    private val _recentSignIns = MutableStateFlow<Result<List<com.eshwar.rideconnectx.domain.model.LoginEntry>>?>(null)
+    val recentSignIns: StateFlow<Result<List<com.eshwar.rideconnectx.domain.model.LoginEntry>>?> = _recentSignIns.asStateFlow()
+
+    init {
+        viewModelScope.launch { _recentSignIns.value = auth.recentSignIns() }
+    }
+
     val connectionState: StateFlow<ConnectionState> = bleRepository.connectionState
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConnectionState.Idle)
 
@@ -197,6 +205,7 @@ class ProfileViewModel @Inject constructor(
         is com.eshwar.rideconnectx.domain.model.AuthError.NoInternet -> "No internet — your account was not deleted."
         is com.eshwar.rideconnectx.domain.model.AuthError.InvalidCredentials ->
             "That didn't match this account — nothing was deleted."
+        is com.eshwar.rideconnectx.domain.model.AuthError.SignInTooOld -> e.message
         else -> "Couldn't finish deleting the account — please try again."
     }
 

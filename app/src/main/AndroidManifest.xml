@@ -33,6 +33,7 @@
     <!-- Notification Permission (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+
     <!--
       Signal bars on the instrument cluster. Without this the heartbeat reports
       zero bars rather than guessing, so the app still works if it is refused.
@@ -89,11 +90,25 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.RideConnectX.Splash"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!--
+                Email sign-in links. Firebase sends them to its Hosting domain; the
+                site's /.well-known/assetlinks.json (site/public) verifies this app.
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="rideconnectx-89528dd3.firebaseapp.com" />
+                <data android:host="rideconnectx-89528dd3.web.app" />
+                <data android:pathPrefix="/__/auth/links" />
             </intent-filter>
         </activity>
 

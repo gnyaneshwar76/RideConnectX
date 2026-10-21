@@ -41,6 +41,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.TwoWheeler
@@ -123,6 +124,7 @@ fun ProfileScreen(
     val nickname by vm.riderNickname.collectAsStateWithLifecycle()
     val selection by vm.vehicle.collectAsStateWithLifecycle()
     val connection by vm.connectionState.collectAsStateWithLifecycle()
+    val recentSignIns by vm.recentSignIns.collectAsStateWithLifecycle()
 
     var editing by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var showPhotoSheet by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
@@ -258,6 +260,11 @@ fun ProfileScreen(
                         }
                     }
                 }
+
+                // So the rider can spot a sign-in that was not them.
+                if (!account.isGuest && com.eshwar.rideconnectx.BuildConfig.CLOUD_ENABLED) item {
+                    RecentSignIns(recentSignIns)
+                }
             }
         }
     }
@@ -369,13 +376,17 @@ fun ProfileScreen(
         val needsPassword = account.method == LoginMethod.EMAIL
         var password by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
         ConfirmSheet(
-            title = "Delete your account?",
+            title = "Delete your account and cloud data forever?",
             body = "This permanently deletes your account, and with it your profile, " +
                 "saved places and rides in the cloud, plus this account's contacts, " +
                 "service records and rides on this phone. It can't be undone.\n\n" +
-                if (needsPassword) "Enter your password to confirm."
-                else "Google will ask you to confirm it's you.",
-            confirmLabel = if (deletingAccount) "Deleting…" else "Delete forever",
+                when {
+                    needsPassword -> "Enter your password to confirm."
+                    account.method == LoginMethod.EMAIL_LINK ->
+                        "If you signed in a while ago, you will be asked to sign in again first."
+                    else -> "Google will ask you to confirm it's you."
+                },
+            confirmLabel = if (deletingAccount) "Deleting…" else "Delete",
             onDismiss = { if (!deletingAccount) confirmDeleteAccount = false },
             onConfirm = {
                 if (deletingAccount || (needsPassword && password.isEmpty())) return@ConfirmSheet
@@ -387,6 +398,11 @@ fun ProfileScreen(
                         onSignedOut()
                     } else {
                         android.widget.Toast.makeText(activity, error, android.widget.Toast.LENGTH_LONG).show()
+                        // Firebase wants a fresh sign-in: sign out and open sign-in (no email is sent here).
+                        if (error == com.eshwar.rideconnectx.domain.model.AuthError.SignInTooOld.message) {
+                            confirmDeleteAccount = false
+                            vm.signOut(onDone = onSignedOut)
+                        }
                     }
                 }
             },
@@ -532,12 +548,47 @@ private fun ProfileCard(
 }
 
 @Composable
+private fun RecentSignIns(result: Result<List<com.eshwar.rideconnectx.domain.model.LoginEntry>>?) {
+    SettingsGroup("Recent sign-ins", Icons.Filled.History) {
+        val list = result?.getOrNull()
+        when {
+            result == null -> SettingsLinkRow(title = "Loading…", chevron = false)
+            list == null -> SettingsLinkRow(
+                title = "Couldn't load your sign-ins",
+                subtitle = "Check your internet and open Profile again.",
+                chevron = false,
+            )
+            list.isEmpty() -> SettingsLinkRow(title = "No sign-ins recorded yet", chevron = false)
+            else -> {
+                val format = remember { java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT) }
+                list.forEachIndexed { i, e ->
+                    if (i > 0) SettingsDivider()
+                    val time = if (e.timeMillis > 0) format.format(java.util.Date(e.timeMillis)) else "Just now"
+                    SettingsLinkRow(
+                        title = e.device.ifBlank { "Unknown phone" },
+                        subtitle = "$time · ${com.eshwar.rideconnectx.domain.model.LoginHistory.methodLabel(e.method)} · " +
+                            "Android ${e.android} · app ${e.app}",
+                        chevron = false,
+                    )
+                }
+            }
+        }
+        SettingsDivider()
+        SettingsLinkRow(
+            title = "Don't recognise one?",
+            subtitle = "Change your Google or email password, then sign out and back in. Help: rideconnectx.app@gmail.com",
+            chevron = false,
+        )
+    }
+}
+
+@Composable
 private fun AccountBadge(isGuest: Boolean, method: LoginMethod) {
     val c = Rcx.colors
     val (label, accent) = when {
         isGuest -> "GUEST MODE" to c.amber
         method == LoginMethod.GOOGLE -> "GOOGLE ACCOUNT" to c.blue
-        method == LoginMethod.EMAIL -> "EMAIL ACCOUNT" to c.blue
+        method == LoginMethod.EMAIL || method == LoginMethod.EMAIL_LINK -> "EMAIL ACCOUNT" to c.blue
         else -> "SIGNED OUT" to c.muted
     }
     Text(

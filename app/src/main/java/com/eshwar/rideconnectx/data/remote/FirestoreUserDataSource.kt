@@ -1,6 +1,9 @@
 package com.eshwar.rideconnectx.data.remote
 
+import com.eshwar.rideconnectx.domain.model.LoginEntry
+import com.eshwar.rideconnectx.domain.model.LoginHistory
 import com.eshwar.rideconnectx.domain.model.UserSession
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -23,6 +26,7 @@ import javax.inject.Singleton
  *     preferences  { mapType, avoidTolls, avoidHighways, notifications }
  *   users/{uid}/favorites/{placeId}
  *   users/{uid}/rides/{r0..r9}   (kept GPS rides, max 10)
+ *   users/{uid}/logins/{auto}    (recent sign-ins, newest 10 kept)
  *
  * Profile fields live in maps on the user document rather than sub-documents so
  * a single read restores the whole account. Favorites and rides grow unbounded,
@@ -56,6 +60,7 @@ class FirestoreUserDataSource @Inject constructor(
         const val USERS = "users"
         const val FAVORITES = "favorites"
         const val RIDES = "rides"
+        const val LOGINS = "logins"
 
         const val PROFILE = "profile"
         const val SETTINGS = "settings"
@@ -175,13 +180,39 @@ class FirestoreUserDataSource @Inject constructor(
     }
 
     /**
+     * One sign-in record ([LoginHistory.record] plus the server time), then the
+     * oldest beyond [LoginHistory.KEEP] are deleted. Offline the write stays
+     * queued and the pruning waits for the next sign-in.
+     */
+    suspend fun recordLogin(uid: String, record: Map<String, String>): Result<Unit> = runCatching {
+        val logins = userDoc(uid).collection(LOGINS)
+        logins.add(record + ("time" to FieldValue.serverTimestamp())).awaitBounded()
+        val ids = logins.orderBy("time", Query.Direction.DESCENDING).get().awaitBounded().documents.map { it.id }
+        LoginHistory.overflow(ids).forEach { logins.document(it).delete().awaitBounded() }
+    }
+
+    suspend fun fetchLogins(uid: String): Result<List<LoginEntry>> = runCatching {
+        userDoc(uid).collection(LOGINS)
+            .orderBy("time", Query.Direction.DESCENDING).limit(LoginHistory.KEEP.toLong())
+            .get().awaitBounded().documents.map { d ->
+                LoginEntry(
+                    timeMillis = d.getTimestamp("time")?.toDate()?.time ?: 0L,
+                    method = d.getString("method").orEmpty(),
+                    device = d.getString("device").orEmpty(),
+                    android = d.getString("android").orEmpty(),
+                    app = d.getString("app").orEmpty(),
+                )
+            }
+    }
+
+    /**
      * Deletes the account's cloud data. Firestore does not cascade: deleting
      * users/{uid} alone left favorites and rides behind, orphaned but still
      * stored. Subcollections go first, in batches under Firestore's 500-write
      * limit, then the document itself. Safe to repeat if interrupted.
      */
     suspend fun deleteUser(uid: String): Result<Unit> = runCatching {
-        for (sub in listOf(FAVORITES, RIDES)) {
+        for (sub in listOf(FAVORITES, RIDES, LOGINS)) {
             userDoc(uid).collection(sub).get().awaitBounded().documents.chunked(400).forEach { chunk ->
                 db.batch().apply { chunk.forEach { delete(it.reference) } }.commit().awaitBounded()
             }

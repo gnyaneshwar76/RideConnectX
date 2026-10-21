@@ -972,7 +972,7 @@ private fun ServiceRecordSheet(
                                 nearOptions.forEach { o -> PickerRow(o) { centre = o; focus.clearFocus() } }
                                 // ODbL attribution wherever OpenStreetMap data is shown (CHK-2).
                                 if (nearOptions.isNotEmpty()) {
-                                    PickerTitle(com.eshwar.rideconnectx.domain.model.LegalContent.OSM_CREDIT)
+                                    PickerTitle(com.eshwar.rideconnectx.domain.model.LegalContent.OSM_SHORT)
                                 }
                             }
                             if (pastOptions.isNotEmpty()) {
@@ -1032,12 +1032,12 @@ private fun ServiceRecordSheet(
                     FieldError(
                         stringResource(
                             R.string.service_odometer_min_error,
-                            unit.format(e.minimumKm),
+                            com.eshwar.rideconnectx.domain.model.DistanceUnit.KM.format(e.minimumKm),
                         )
                     )
                 is RecordError.OdometerTooHigh ->
                     FieldError(
-                        stringResource(R.string.service_odometer_max_error, unit.format(e.maximumKm))
+                        stringResource(R.string.service_odometer_max_error, com.eshwar.rideconnectx.domain.model.DistanceUnit.KM.format(e.maximumKm))
                     )
                 else -> {
                     // Follows the chosen date, so back-filling an old service
@@ -1045,9 +1045,9 @@ private fun ServiceRecordSheet(
                     val (floor, ceiling) = bounds(servicedAt)
                     val hint = when {
                         ceiling != null -> stringResource(
-                            R.string.service_odometer_range, unit.format(floor), unit.format(ceiling),
+                            R.string.service_odometer_range, com.eshwar.rideconnectx.domain.model.DistanceUnit.KM.format(floor), com.eshwar.rideconnectx.domain.model.DistanceUnit.KM.format(ceiling),
                         )
-                        floor > 0 -> stringResource(R.string.service_odometer_at_least, unit.format(floor))
+                        floor > 0 -> stringResource(R.string.service_odometer_at_least, com.eshwar.rideconnectx.domain.model.DistanceUnit.KM.format(floor))
                         else -> null
                     }
                     hint?.let {

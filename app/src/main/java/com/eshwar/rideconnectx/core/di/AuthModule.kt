@@ -16,3 +16,10 @@ abstract class AuthModule {
     @Singleton
     abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
 }
+
+/** For MainActivity, which hands sign-in links over without field injection (see ServiceEntryPoint). */
+@dagger.hilt.EntryPoint
+@InstallIn(SingletonComponent::class)
+interface AuthEntryPoint {
+    fun authRepository(): AuthRepository
+}

@@ -99,7 +99,7 @@ object LegalContent {
         LegalSection(
             "11. Disclaimer",
             "RideConnectX is provided \"as is\" without warranties of any kind.",
-            tail = "While every effort is made to provide reliable functionality, uninterrupted operation cannot be guaranteed.",
+            tail = "While every effort is made to provide reliable functionality, uninterrupted operation cannot be guaranteed. The optional service-centre lookup relies on OpenStreetMap data and a service we do not operate; listings may be wrong or out of date.",
         ),
         LegalSection(
             "12. Limitation of Liability",
@@ -112,7 +112,7 @@ object LegalContent {
         ),
         LegalSection(
             "14. Contact",
-            "Questions regarding these Terms may be submitted through the official RideConnectX support channels.",
+            "Questions regarding these Terms: email rideconnectx.app@gmail.com.",
         ),
     )
 
@@ -120,13 +120,16 @@ object LegalContent {
      * Shown by the screen that lists service centres and by About. Required by
      * the OpenStreetMap licence (ODbL) wherever its data is shown.
      */
+    /** The one-line credit on the screen; the full text stays in the Privacy Policy. */
+    const val OSM_SHORT = "© OpenStreetMap contributors"
+
     const val OSM_CREDIT = "Service centre search uses map data © OpenStreetMap contributors, available under the Open Database Licence. openstreetmap.org/copyright"
 
     // Mirrors docs/PRIVACY-POLICY.md and site/public/privacy.html. Change all three together.
     val PRIVACY = listOf(
         LegalSection(
             "1. Introduction",
-            "RideConnectX shows turn-by-turn directions, alerts and your name on your scooter's instrument cluster over Bluetooth. Last updated 10 October 2026.",
+            "RideConnectX shows turn-by-turn directions, alerts and your name on your scooter's instrument cluster over Bluetooth. Last updated 17 October 2026.",
             tail = "This policy explains what the app collects, where it goes, and what stays on your phone. Nothing is sold, and nothing is shared with advertisers. The app has no analytics, no advertising and no advertising identifier. The Bluetooth link to the cluster is not encrypted: caller and sender names cross the air in plain text.",
         ),
         LegalSection(
@@ -138,6 +141,7 @@ object LegalContent {
                 "Notification history on the Notifications page (caller or sender name and kind; never the message text). The same names are shown on the cluster",
                 "Ride log, off by default; only if you switch it on in Settings (Ride testing): Maps instructions and destination text, caller or sender names (never message text) and route times, never uploaded; delete it with Clear ride log",
                 "Paired scooter address and name",
+                "The email address you asked a sign-in link for, the time it was sent, and the times of your last link requests (to enforce a 10-minute link and 5 requests a day)",
                 "Settings and appearance",
             ),
             tail = "Backup is disabled, so none of this is copied to Google cloud backup.",
@@ -152,6 +156,7 @@ object LegalContent {
                 "Account dates and a default settings record created at first sign-in",
                 "Profile photo, if you set one, at a reduced size",
                 "Your scooter's last odometer, trip and fuel readings",
+                "Your last 10 sign-ins: time, sign-in method (Google, email and password, or email link), phone model, Android version and app version. No IP address, no location and no device ID. You can see them in Profile → Recent sign-ins, to spot a sign-in that was not you; older ones are deleted automatically.",
                 "Rides you keep (maximum 10): start and end time, distance, duration, top and average speed, title, vehicle and the route (GPS points, precise location history).",
             ),
             tail = "While the scooter is connected the app records your ride route with GPS and saves it on the phone. A ride you do not keep is deleted automatically 30 days after it ended. Only a ride you keep while signed in is uploaded; deleting it removes the cloud copy. As a guest, nothing is uploaded.",
@@ -173,8 +178,8 @@ object LegalContent {
             "5. Other services",
             "The app uses these outside services:",
             bullets = listOf(
-                "Firebase Authentication and Cloud Firestore (Google): your sign-in and the account data above, only when you sign in. Google Sign-In if you choose it.",
-                "OpenStreetMap Overpass (overpass-api.de): when you look up service centres, your approximate position (rounded to about 1 km) is sent to find places nearby. The service also sees your IP address. Nothing is linked to your account.",
+                "Firebase Authentication and Cloud Firestore (Google): your sign-in and the account data above, only when you sign in. Google Sign-In if you choose it. Sign-in link, verification and password-reset emails are sent from rideconnectx.app@gmail.com.",
+                "OpenStreetMap Overpass (overpass-api.de): when you look up service centres, your approximate position (rounded to about 1 km) is sent to find places nearby. The service also sees your IP address. Nothing is linked to your account. This optional \"service centres near me\" lookup uses a service we do not operate, and the results come from OpenStreetMap, so we cannot vouch for them.",
                 "Firebase App Check (Google): confirms to Firebase that requests come from this app; no profile data.",
                 "Android Geocoder: turns coordinates into a place name; on most phones Google's location service does this.",
             ),
@@ -207,7 +212,7 @@ object LegalContent {
         ),
         LegalSection(
             "10. Contact",
-            "Questions regarding privacy: the project's GitHub Issues page. The full policy is at rideconnectx-89528dd3.web.app/privacy.html.",
+            "Questions regarding privacy: email rideconnectx.app@gmail.com. The full policy is at rideconnectx-89528dd3.web.app/privacy.html.",
         ),
     )
 }

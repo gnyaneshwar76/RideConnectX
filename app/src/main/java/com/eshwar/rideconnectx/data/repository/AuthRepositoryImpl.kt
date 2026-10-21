@@ -16,6 +16,14 @@ import com.eshwar.rideconnectx.domain.model.HandoverAction
 import com.eshwar.rideconnectx.domain.model.ProfileHandover
 import com.eshwar.rideconnectx.domain.model.GuestNameRules
 import com.eshwar.rideconnectx.domain.model.LoginMethod
+import com.eshwar.rideconnectx.domain.model.EmailLinkFlow
+import com.eshwar.rideconnectx.domain.model.LoginEntry
+import com.eshwar.rideconnectx.domain.model.LoginHistory
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import com.eshwar.rideconnectx.domain.model.SyncOutcome
 import com.eshwar.rideconnectx.domain.model.UserSession
 import com.eshwar.rideconnectx.core.di.ApplicationScope
@@ -45,6 +53,7 @@ class AuthRepositoryImpl @Inject constructor(
     private val database: com.eshwar.rideconnectx.data.local.db.RideDatabase,
     @ApplicationScope private val appScope: CoroutineScope,
     private val rides: RideRepository,
+    private val linkStore: com.eshwar.rideconnectx.data.remote.EmailLinkStore,
 ) : AuthRepository {
 
     private companion object {
@@ -115,6 +124,70 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun sendPasswordReset(email: String): AuthResult =
         remote.sendPasswordReset(email)
+
+    /** In memory only: if the app is killed, tapping the link again brings it back. */
+    private val pendingLink = MutableStateFlow<String?>(null)
+    override val emailLinkWaiting: StateFlow<Boolean> =
+        pendingLink.map { it != null }.stateIn(appScope, SharingStarted.Eagerly, false)
+
+    override fun offerEmailLink(link: String): Boolean =
+        remote.isSignInLink(link).also { if (it) pendingLink.value = link }
+
+    override suspend fun sendSignInLink(email: String): AuthResult {
+        val now = System.currentTimeMillis()
+        when (val check = EmailLinkFlow.checkSend(linkStore.requests(), now)) {
+            EmailLinkFlow.SendCheck.Ok -> Unit
+            is EmailLinkFlow.SendCheck.Wait ->
+                return AuthResult.Failure(AuthError.Unknown("Wait ${check.seconds} seconds before asking for another link."))
+            is EmailLinkFlow.SendCheck.Capped ->
+                return AuthResult.Failure(AuthError.Unknown(EmailLinkFlow.cappedMessage(check.minutes)))
+        }
+        val result = remote.sendSignInLink(email)
+        if (result is AuthResult.Success) linkStore.markSent(email.trim(), now)
+        return result
+    }
+
+    override suspend fun completeEmailLink(email: String?): AuthResult = appScope.async {
+        val link = pendingLink.value
+        if (link != null && EmailLinkFlow.isExpired(linkStore.sentAt(), System.currentTimeMillis())) {
+            pendingLink.value = null
+            linkStore.clear()
+            return@async AuthResult.Failure(AuthError.Unknown(EmailLinkFlow.LINK_EXPIRED))
+        }
+        when (val step = EmailLinkFlow.next(link, linkStore.get(), email)) {
+            EmailLinkFlow.Step.NoLink -> AuthResult.Failure(AuthError.Unknown("Open the sign-in link from your email again."))
+            EmailLinkFlow.Step.AskEmail -> AuthResult.Failure(AuthError.NeedLinkEmail)
+            is EmailLinkFlow.Step.Complete -> {
+                val result = remote.signInWithEmailLink(step.email, link!!)
+                val error = (result as? AuthResult.Failure)?.error
+                if (result is AuthResult.Success || (error is AuthError.LinkFailed && !error.linkStillGood)) {
+                    pendingLink.value = null
+                    linkStore.clear()
+                }
+                result.persist()
+            }
+        }
+    }.await()
+
+    override suspend fun recentSignIns(): Result<List<LoginEntry>> {
+        val uid = prefs.session.first().uid
+        if (uid.isEmpty()) return Result.success(emptyList())
+        return firestore.fetchLogins(uid)
+    }
+
+    /** Fire and forget: the sign-in never waits on, or fails because of, its history record. */
+    private fun recordLogin(user: UserSession) {
+        val method = LoginHistory.methodKey(user.method) ?: return
+        appScope.launch {
+            firestore.recordLogin(
+                user.uid,
+                LoginHistory.record(
+                    method, android.os.Build.MANUFACTURER, android.os.Build.MODEL,
+                    android.os.Build.VERSION.RELEASE, com.eshwar.rideconnectx.BuildConfig.VERSION_NAME,
+                ),
+            ).onFailure { Log.w(TAG, "Sign-in record not saved", it) }
+        }
+    }
 
     override suspend fun continueAsGuest(name: String): AuthResult {
         val clean = name.trim()
@@ -213,10 +286,12 @@ class AuthRepositoryImpl @Inject constructor(
         }
         val uid = session.uid
 
-        val proof = if (session.method == LoginMethod.EMAIL) {
-            remote.reauthenticateWithPassword(password.orEmpty())
-        } else {
-            remote.reauthenticateWithGoogle(activity)
+        val proof = when (session.method) {
+            LoginMethod.EMAIL -> remote.reauthenticateWithPassword(password.orEmpty())
+            // No password to re-check: Firebase accepts a sign-in from the last few minutes.
+            LoginMethod.EMAIL_LINK ->
+                if (remote.isSignInRecent()) AuthResult.Success(session) else AuthResult.Failure(AuthError.SignInTooOld)
+            else -> remote.reauthenticateWithGoogle(activity)
         }
         if (proof is AuthResult.Failure) return proof
 
@@ -320,6 +395,7 @@ class AuthRepositoryImpl @Inject constructor(
         // phone (AuthState.resolve), so nothing routes on a half-done sign-in.
         prefs.saveSession(user)
         rides.scheduleUpload()   // kept rides go up once the session exists
+        recordLogin(user)
 
         // The session is saved, so the rider IS signed in. Never turn that into a
         // Failure: the screen would show "couldn't sync" over a working account.

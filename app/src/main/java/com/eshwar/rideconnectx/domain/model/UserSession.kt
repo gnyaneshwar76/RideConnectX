@@ -1,7 +1,7 @@
 package com.eshwar.rideconnectx.domain.model
 
 /** How the current user signed in. */
-enum class LoginMethod { NONE, GUEST, GOOGLE, EMAIL, PHONE }
+enum class LoginMethod { NONE, GUEST, GOOGLE, EMAIL, PHONE, EMAIL_LINK }
 
 /**
  * The signed-in user. [LoginMethod.NONE] means nobody is signed in yet.

@@ -84,6 +84,7 @@ fun SignInScreen(
     val state by vm.ui.collectAsStateWithLifecycle()
     // Credential Manager shows a system dialog, so it needs the hosting Activity.
     val activity = LocalContext.current as android.app.Activity
+    androidx.compose.runtime.LaunchedEffect(Unit) { vm.watchEmailLinks() }
 
 
     Box(Modifier.fillMaxSize()) {
@@ -297,6 +298,28 @@ private fun EmailForm(state: SignInUiState, vm: AuthViewModel) {
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (state.askLinkEmail) {
+            // A sign-in link opened on a phone that did not ask for it.
+            OutlinedTextField(
+                value = state.email,
+                onValueChange = vm::onEmailChange,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(stringResource(R.string.signin_field_email), style = RcxType.Body, color = c.muted.copy(alpha = 0.6f)) },
+                singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                textStyle = RcxType.Body.copy(fontSize = 15.sp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                colors = fieldColors,
+            )
+            PrimaryButton(
+                label = stringResource(R.string.signin_finish_link),
+                onClick = { vm.finishEmailLink() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = state.canSendLink || state.isBusy,
+                busy = state.isBusy,
+            )
+            return@Column
+        }
         if (state.isNewAccount) {
             OutlinedTextField(
                 value = state.displayName,
@@ -374,5 +397,16 @@ private fun EmailForm(state: SignInUiState, vm: AuthViewModel) {
                 )
             }
         }
+
+        // Passwordless: a one-time link by email, for new and existing accounts.
+        Text(
+            stringResource(R.string.signin_email_link) + if (state.resendSeconds > 0) " (${state.resendSeconds}s)" else "",
+            style = RcxType.BodySmall.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+            color = if (state.resendSeconds > 0) c.muted else c.blue,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+                .clickable(enabled = !state.isBusy && state.resendSeconds == 0, role = androidx.compose.ui.semantics.Role.Button) { vm.sendSignInLink() }
+                .defaultMinSize(minHeight = 48.dp).wrapContentHeight(Alignment.CenterVertically),
+        )
     }
 }

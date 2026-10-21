@@ -1,6 +1,3 @@
-import java.security.MessageDigest
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -23,40 +20,6 @@ if (firebaseConfig.exists()) {
     logger.lifecycle("Firebase: google-services.json missing — running without Firebase.")
 }
 
-/*
- * Release signing, same conditional trick as Firebase above. The keystore and its
- * passwords live in keystore.properties, which git ignores and nobody but the
- * rider ever sees. Until that file exists, release builds stay unsigned and the
- * build still passes. Expected keys: storeFile, storePassword, keyAlias, keyPassword.
- */
-val keystoreProps = rootProject.file("keystore.properties")
-    .takeIf { it.exists() }
-    ?.let { f -> Properties().apply { f.inputStream().use { load(it) } } }
-
-/*
- * Version from the release tag: ./gradlew assembleRelease -PreleaseTag=v0.9.0-beta
- * versionName = tag without "v" ("0.9.0-beta").
- * versionCode = (major*10000 + minor*100 + patch) * 10 + suffix rank, so a later
- * version always has a higher code and a pre-release sorts below its final:
- * none 9, rc 7, beta 5, alpha 3, any other suffix 1. v0.9.0-beta = 9005.
- * Without a tag: versionName "0.9.0", versionCode from -PversionCode or 1 (as before).
- */
-val releaseTag = (project.findProperty("releaseTag") as String?) ?: System.getenv("RELEASE_TAG")
-val tagMatch = releaseTag?.let { Regex("""v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+))?""").matchEntire(it.trim()) }
-if (releaseTag != null && tagMatch == null) {
-    throw GradleException("releaseTag '$releaseTag' is not like v1.2.3 or v1.2.3-beta")
-}
-val tagVersionName = tagMatch?.let { m ->
-    m.groupValues.let { g -> "${g[1]}.${g[2]}.${g[3]}" + if (g[4].isNotEmpty()) "-${g[4]}" else "" }
-}
-val tagVersionCode = tagMatch?.let { m ->
-    val (ma, mi, pa) = m.groupValues.drop(1).take(3).map { it.toInt() }
-    val rank = when (m.groupValues[4].substringBefore('.').lowercase()) {
-        "" -> 9; "rc" -> 7; "beta" -> 5; "alpha" -> 3; else -> 1
-    }
-    (ma * 10000 + mi * 100 + pa) * 10 + rank
-}
-
 android {
     namespace = "com.eshwar.rideconnectx"
     compileSdk = 35
@@ -67,25 +30,13 @@ android {
         applicationId = "com.gnyaneshwar.rideconnectx"
         minSdk = 28
         targetSdk = 35
-        // Play needs a higher number each upload: ./gradlew bundleRelease -PversionCode=2
-        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
-        if (tagVersionCode != null) versionCode = tagVersionCode
-        versionName = tagVersionName ?: "0.9.0"
+        // Raise versionCode by 1 for every APK that must install over the last one.
+        versionCode = 2
+        versionName = "1.0.0"
         buildConfigField("boolean", "CLOUD_ENABLED", "true")
         buildConfigField("boolean", "RIDE_LOG_DEFAULT_ON", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    signingConfigs {
-        if (keystoreProps != null) {
-            create("release") {
-                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
-                storePassword = keystoreProps.getProperty("storePassword")
-                keyAlias = keystoreProps.getProperty("keyAlias")
-                keyPassword = keystoreProps.getProperty("keyPassword")
-            }
-        }
     }
 
     buildTypes {
@@ -93,33 +44,14 @@ android {
             buildConfigField("boolean", "RIDE_LOG_DEFAULT_ON", "true")
         }
         release {
-            signingConfigs.findByName("release")?.let { signingConfig = it }
-            // R8 on: shrinks, and strips android.util.Log via proguard-rules.pro.
-            // Without it every Log.d survived into release — BLE packets in hex,
-            // caller names, message senders and the Firebase uid, all readable
-            // over ADB by anyone holding the phone.
+            // No signingConfig on purpose: Gradle makes an UNSIGNED APK and
+            // tools/build-release.ps1 signs it with apksigner (release key plus the
+            // v3 rotation lineage from the debug key, which Gradle cannot do).
+            // The key password is typed by the owner and never stored on disk.
             //
-            // NOT YET SMOKE-TESTED ON HARDWARE. Obfuscation breaks at runtime,
-            // not at compile time. Install a release build and exercise sign-in,
-            // the BLE link and a real turn before trusting it.
+            // R8 on: shrinks, and strips android.util.Log via proguard-rules.pro.
             isMinifyEnabled = true
             isShrinkResources = true
-
-            // An unsigned release APK is not installable and cannot be uploaded
-            // to Play, but the build used to succeed anyway and say nothing —
-            // you only found out at the store. Fail loudly instead.
-            if (keystoreProps == null) {
-                tasks.matching { it.name == "packageRelease" || it.name == "bundleRelease" || it.name == "packageReleaseBundle" }.configureEach {
-                    doFirst {
-                        throw GradleException(
-                            "keystore.properties is missing, so this release would be UNSIGNED " +
-                                "and cannot be installed or uploaded to Play. Create it at the " +
-                                "project root with storeFile, storePassword, keyAlias, keyPassword. " +
-                                "For an unsigned test build use assembleDebug or assembleSmooth."
-                        )
-                    }
-                }
-            }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         // Release speed for testing on your own phone: R8-optimised and not
@@ -147,23 +79,14 @@ android {
     }
 }
 
-// Release APK is named RideConnectX-v<version>.apk and gets a .sha256 beside it.
-// Only the release variant; debug and smooth keep their normal names.
+// Unsigned release APK: RideConnectX-v<version>-unsigned.apk. tools/build-release.ps1
+// signs it into RideConnectX-v<version>.apk and writes the .sha256 beside it.
 @Suppress("DEPRECATION")
 android.applicationVariants.all {
     if (buildType.name == "release") {
         outputs.all {
             (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-                "RideConnectX-v${versionName}.apk"
-        }
-    }
-}
-tasks.matching { it.name == "packageRelease" }.configureEach {
-    doLast {
-        outputs.files.files.flatMap { f -> f.walkTopDown().filter { it.extension == "apk" }.toList() }.forEach { apk ->
-            val sum = MessageDigest.getInstance("SHA-256").digest(apk.readBytes())
-                .joinToString("") { "%02x".format(it) }
-            File(apk.parentFile, apk.name + ".sha256").writeText("$sum  ${apk.name}" + System.lineSeparator())
+                "RideConnectX-v${versionName}-unsigned.apk"
         }
     }
 }
@@ -179,6 +102,8 @@ dependencies {
         listOf("protobuf-javalite", "protobuf-java", "protobuf-kotlin-lite").forEach {
             implementation("com.google.protobuf:$it:3.25.5") { because("CVE-2024-7254") }
         }
+        // Email-link sign-in needs ActionCodeSettings.setLinkDomain (23.2.0+): Dynamic Links are shut down.
+        implementation("com.google.firebase:firebase-auth:23.2.1") { because("email link on Hosting domain") }
     }
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
@@ -201,6 +126,7 @@ dependencies {
 
     // DataStore
     implementation(libs.datastore.preferences)
+
 
     // Room — ride history for Statistics
     implementation(libs.room.runtime)

@@ -81,6 +81,8 @@
     <string name="signin_have_account">Have an account? Sign in</string>
     <string name="signin_new_here">New here? Create account</string>
     <string name="signin_forgot">Forgot password?</string>
+    <string name="signin_email_link">Email me a sign-in link</string>
+    <string name="signin_finish_link">Finish signing in</string>
 
     <!-- 07 Guest -->
     <string name="guest_title">Guest Account</string>

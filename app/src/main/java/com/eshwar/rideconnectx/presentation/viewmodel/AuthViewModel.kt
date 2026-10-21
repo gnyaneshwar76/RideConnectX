@@ -4,8 +4,10 @@ import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.eshwar.rideconnectx.data.local.UserPreferencesStore
+import com.eshwar.rideconnectx.domain.model.AuthError
 import com.eshwar.rideconnectx.domain.model.AuthResult
 import com.eshwar.rideconnectx.domain.model.AuthState
+import com.eshwar.rideconnectx.domain.model.EmailLinkFlow
 import com.eshwar.rideconnectx.domain.model.FieldRules
 import com.eshwar.rideconnectx.domain.model.GuestNameRules
 import com.eshwar.rideconnectx.domain.model.PasswordRules
@@ -36,7 +38,14 @@ data class SignInUiState(
     val googleAvailable: Boolean = false,
     val errorMessage: String? = null,
     val infoMessage: String? = null,
+    /** A sign-in link opened on a phone that did not ask for it: only the email is asked. */
+    val askLinkEmail: Boolean = false,
+    /** Seconds until another link may be requested; 0 = allowed. */
+    val resendSeconds: Int = 0,
 ) {
+    val canSendLink: Boolean
+        get() = !isBusy && resendSeconds == 0 && email.contains('@') && email.substringAfterLast('@').contains('.')
+
     val canSubmitEmail: Boolean
         get() = !isBusy &&
             email.contains('@') && email.substringAfterLast('@').contains('.') &&
@@ -117,6 +126,61 @@ class AuthViewModel @Inject constructor(
         run(onSuccess = onDone) { auth.continueAsGuest(name) }
     }
 
+    /** Passwordless: one email with a one-time link. Works for new and existing accounts. */
+    fun sendSignInLink() {
+        val email = _ui.value.email.trim()
+        if (!_ui.value.canSendLink) {
+            _ui.update { it.copy(errorMessage = "Enter your email first.") }
+            return
+        }
+        viewModelScope.launch {
+            _ui.update { it.copy(isBusy = true, errorMessage = null) }
+            when (val result = auth.sendSignInLink(email)) {
+                is AuthResult.Success -> {
+                    _ui.update {
+                        it.copy(isBusy = false, infoMessage = "Sent to ${EmailLinkFlow.maskEmail(email)}. ${EmailLinkFlow.SENT_NOTE}")
+                    }
+                    startCooldown((EmailLinkFlow.RESEND_COOLDOWN_MS / 1000).toInt())
+                }
+                is AuthResult.Failure ->
+                    _ui.update { it.copy(isBusy = false, errorMessage = result.error.message) }
+            }
+        }
+    }
+
+    private fun startCooldown(seconds: Int) {
+        viewModelScope.launch {
+            for (s in seconds downTo 1) {
+                _ui.update { it.copy(resendSeconds = s) }
+                kotlinx.coroutines.delay(1000)
+            }
+            _ui.update { it.copy(resendSeconds = 0) }
+        }
+    }
+
+    val emailLinkWaiting: Boolean get() = auth.emailLinkWaiting.value
+
+    private var watchingLinks = false
+
+    /** Sign In only (other screens hold an AuthViewModel too): finish a link that opened the app. */
+    fun watchEmailLinks() {
+        if (watchingLinks) return
+        watchingLinks = true
+        viewModelScope.launch {
+            auth.emailLinkWaiting.collect { waiting -> if (waiting) finishEmailLink(typed = false) }
+        }
+    }
+
+    /** [typed] = the rider typed the email (link opened on another phone). */
+    fun finishEmailLink(typed: Boolean = true) {
+        val email = _ui.value.email.takeIf { typed }
+        run(onFailure = { error ->
+            val ask = error is AuthError.NeedLinkEmail ||
+                (error is AuthError.LinkFailed && error.linkStillGood)
+            _ui.update { it.copy(askLinkEmail = ask, mode = if (ask) AuthMode.Email else it.mode) }
+        }) { auth.completeEmailLink(email) }
+    }
+
     fun resetPassword() {
         val email = _ui.value.email
         if (!email.contains('@')) {
@@ -127,7 +191,7 @@ class AuthViewModel @Inject constructor(
             _ui.update { it.copy(isBusy = true) }
             when (val result = auth.sendPasswordReset(email)) {
                 is AuthResult.Success ->
-                    _ui.update { it.copy(isBusy = false, infoMessage = "Reset link sent to $email.") }
+                    _ui.update { it.copy(isBusy = false, infoMessage = "Reset link sent to ${EmailLinkFlow.maskEmail(email)}.") }
                 is AuthResult.Failure ->
                     _ui.update { it.copy(isBusy = false, errorMessage = result.error.message) }
             }
@@ -146,7 +210,11 @@ class AuthViewModel @Inject constructor(
      * Legal acceptance is recorded on sign-in because the Sign In screen states
      * that continuing constitutes agreement.
      */
-    private fun run(onSuccess: () -> Unit = {}, block: suspend () -> AuthResult) {
+    private fun run(
+        onSuccess: () -> Unit = {},
+        onFailure: (AuthError) -> Unit = {},
+        block: suspend () -> AuthResult,
+    ) {
         viewModelScope.launch {
             _ui.update { it.copy(isBusy = true, errorMessage = null) }
             // Busy always clears, even if the call throws (CHK-25).
@@ -158,8 +226,10 @@ class AuthViewModel @Inject constructor(
                         _ui.update { it.copy(isBusy = false, infoMessage = syncNote(result.sync)) }
                         onSuccess()
                     }
-                    is AuthResult.Failure ->
+                    is AuthResult.Failure -> {
                         _ui.update { it.copy(isBusy = false, errorMessage = result.error.message) }
+                        onFailure(result.error)
+                    }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e

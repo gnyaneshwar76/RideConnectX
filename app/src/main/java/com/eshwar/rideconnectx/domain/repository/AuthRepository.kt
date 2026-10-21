@@ -26,6 +26,24 @@ interface AuthRepository {
 
     suspend fun sendPasswordReset(email: String): AuthResult
 
+    /** True while a sign-in link that opened the app waits to be finished on Sign In. */
+    val emailLinkWaiting: kotlinx.coroutines.flow.StateFlow<Boolean>
+
+    /** Called with every link the app is opened with; true when it is a sign-in link (it is then held). */
+    fun offerEmailLink(link: String): Boolean
+
+    /** Emails a one-time sign-in link and saves [email] on this phone for when it opens. */
+    suspend fun sendSignInLink(email: String): AuthResult
+
+    /**
+     * Finishes the held link. [email] null uses the address saved when the link
+     * was sent; with none saved (another phone) it fails with NeedLinkEmail.
+     */
+    suspend fun completeEmailLink(email: String? = null): AuthResult
+
+    /** Profile -> Recent sign-ins, newest first (at most 10). */
+    suspend fun recentSignIns(): Result<List<com.eshwar.rideconnectx.domain.model.LoginEntry>>
+
     /** Local-only session; never reaches Firebase or Firestore. */
     suspend fun continueAsGuest(name: String): AuthResult
 

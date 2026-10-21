@@ -121,7 +121,8 @@ class GpsRideAccumulator(private val minMetres: Int = 200) {
         teleports = 0
 
         dist += d
-        if (startedAt == 0L) startedAt = timeMs
+        // The ride starts where the first counted segment starts, so distance and time cover the same stretch.
+        if (startedAt == 0L) startedAt = a.t
         lastMoveAt = timeMs
         curKmh = if (doppler) speedMps!! * 3.6 else impliedKmh
         speeds.addLast(curKmh)
@@ -152,7 +153,7 @@ class GpsRideAccumulator(private val minMetres: Int = 200) {
         val avg = if (lastMoveAt > startedAt) avgKmh(dist, lastMoveAt - startedAt) else 0
         return LiveRide(
             distanceM = metres, speedKmh = if (moving) curKmh.roundToInt() else 0, avgKmh = avg,
-            maxKmh = maxKmh, durationMs = duration, route = routeView,
+            maxKmh = max(maxKmh, avg), durationMs = duration, route = routeView,
             gpsOk = nowMs - lastGoodAt <= MAX_AGE_MS && lastGoodAt > 0, startedAt = startedAt,
         )
     }

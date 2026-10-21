@@ -8,8 +8,8 @@
 ![Platform](https://img.shields.io/badge/Platform-Android%209%2B-2B7FFF.svg)
 ![Language](https://img.shields.io/badge/Kotlin-100%25-9B6BFF.svg)
 ![UI](https://img.shields.io/badge/Jetpack-Compose-00D9A3.svg)
-![Tests](https://img.shields.io/badge/Unit%20tests-286%20passing-00D9A3.svg)
-![Status](https://img.shields.io/badge/Status-beta%200.9.0-FFB547.svg)
+![Tests](https://img.shields.io/badge/Unit%20tests-303%20passing-00D9A3.svg)
+![Status](https://img.shields.io/badge/Status-1.0.0%20stable-00D9A3.svg)
 
 [Idea](#the-idea) · [Features](#features) · [Live rides](#live-gps-rides) · [How it works](#how-it-works) · [Privacy](#privacy-and-security) · [Build](#build-it) · [Roadmap](#roadmap)
 
@@ -88,15 +88,13 @@ If you try it on another bike, please open an issue and tell us what happened.
 
 ## Install
 
-> **Beta, by invitation.** A public release is planned. For now the app is shared with friends and testers only. Open an issue if you would like to try it.
-
-Android 9 or newer. When you have the APK: allow installs from that source, install, open the app, tap **Continue as guest**, grant Bluetooth, Location and Notification access, then pair your dashboard.
+Android 9 or newer. Download `RideConnectX-v1.0.0.apk` from the [Releases](https://github.com/gnyaneshwar76/Ride_Connect_X/releases) page. You can check the file against the `.sha256` beside it. Allow installs from your browser or file manager, install, open the app, tap **Continue as guest**, grant Bluetooth, Location and Notification access, then pair your dashboard.
 
 ## Tech stack
 
 **Kotlin · Jetpack Compose · Hilt · Room · DataStore · Firebase Auth and Firestore · WorkManager · Bluetooth LE · Fused Location**
 
-Single-activity MVVM with clean domain, data and presentation layers. 286 unit tests.
+Single-activity MVVM with clean domain, data and presentation layers. 303 unit tests.
 
 ```
 app/            Android app
@@ -127,7 +125,8 @@ The debug build runs against the built-in simulator, so it works on an emulator 
 - [x] Themes, colour mixes and glass UI
 - [ ] Verify more models on real bikes
 - [ ] In-app bug reporting
-- [ ] Release signing key and public release
+- [x] Release signing key
+- [ ] Public release on GitHub Releases
 
 ## Contributing
 

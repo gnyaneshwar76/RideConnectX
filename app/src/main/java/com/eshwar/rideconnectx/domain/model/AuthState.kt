@@ -39,6 +39,14 @@ sealed interface AuthError {
     /** Email account whose address was never confirmed; a link has been (re)sent. */
     data class EmailNotVerified(val email: String) : AuthError
     data class Unknown(val detail: String) : AuthError
+    /** Firebase rate limit (sign-in tries or emails sent). */
+    data object TooManyTries : AuthError
+    /** A sign-in link that failed; [linkStillGood] = retry with another email. */
+    data class LinkFailed(val detail: String, val linkStillGood: Boolean) : AuthError
+    /** A link opened on a phone that did not ask for it: type the email to finish. */
+    data object NeedLinkEmail : AuthError
+    /** Email-link accounts have no password, so deleting needs a sign-in from the last 5 minutes; the rider is sent to sign in again (the app sends no email). */
+    data object SignInTooOld : AuthError
 
     val message: String
         get() = when (this) {
@@ -57,8 +65,13 @@ sealed interface AuthError {
             is TokenFailure -> "Couldn't verify your Google account. $detail"
             is CloudSyncFailure -> "Signed in, but your data couldn't sync. $detail"
             is EmailNotVerified ->
-                "We've sent a verification link to $email. Open it, then sign in. Not your address? Sign up again with the right one."
+                "We've sent a verification link to ${EmailLinkFlow.maskEmail(email)}. Open it, then sign in. Not your address? Sign up again with the right one."
             is Unknown -> detail
+            TooManyTries -> EmailLinkFlow.TOO_MANY
+            is LinkFailed -> detail
+            NeedLinkEmail -> "To finish signing in, type the email you asked the link for."
+            SignInTooOld ->
+                "For your safety, sign in again, then delete your account."
         }
 }
 

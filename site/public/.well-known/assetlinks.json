@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.gnyaneshwar.rideconnectx",
+      "sha256_cert_fingerprints": [
+        "B0:A7:98:BE:E2:4D:61:97:79:88:5F:14:1E:61:F9:6D:BA:B2:1D:1E:66:7A:2B:13:C7:95:B6:29:62:57:9C:88",
+        "18:79:37:25:2A:C6:63:1C:6D:FB:DA:72:08:1B:52:18:AA:09:CC:16:2A:2F:98:80:6F:F4:3A:06:7F:C3:77:EE"
+      ]
+    }
+  }
+]

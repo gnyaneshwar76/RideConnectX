@@ -199,9 +199,26 @@ class ProtocolEngineTest {
         // Turn distance must be unaffected by it.
         assertEquals("0040M", String(withRemaining, 4, 5, Charsets.US_ASCII))
 
-        // Not supplied - the slot is blank (FF), not a literal 0000M.
+        // Not supplied = unknown (-1): FF x5.
         val without = ProtocolEngine.buildNavigationPacket(11, 40, "0900AM")
         for (i in 18..22) assertEquals(0xFF.toByte(), without[i])
+        val unknown = ProtocolEngine.buildNavigationPacket(11, 40, "0900AM", remainingMetres = -1)
+        for (i in 18..22) assertEquals(0xFF.toByte(), unknown[i])
+        // A real 0 is a number, never error symbols.
+        val zero = ProtocolEngine.buildNavigationPacket(11, 40, "0900AM", remainingMetres = 0)
+        assertEquals("0000M", String(zero, 18, 5, Charsets.US_ASCII))
+    }
+
+    @Test
+    fun `remaining distance shapes, 10 km and above pinned as they are today`() {
+        fun f(m: Int) = String(ProtocolEngine.buildNavigationPacket(11, 40, "0900AM", remainingMetres = m), 18, 5, Charsets.US_ASCII)
+        assertEquals("0382M", f(382))
+        assertEquals("01.4K", f(1400))
+        assertEquals("01.5K", f(1451))
+        assertEquals("10.0K", f(9960)) // shape flip, owner decision pending
+        assertEquals("0010K", f(10_000))
+        assertEquals("0014K", f(14_300))
+        assertEquals("0099K", f(99_999))
     }
 
     // ── Profile packet ─────────────────────────────────────────────

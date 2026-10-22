@@ -170,9 +170,10 @@ class RideLog @Inject constructor(
         subText: String,
         iconName: String = "",
         iconId: Int = 0,
+        progress: String = "",
     ) {
         val line = "title='$title' | text='$text' | subText='$subText' | " +
-            "icon='$iconName' ($iconId)"
+            "icon='$iconName' ($iconId)" + if (progress.isBlank()) "" else " | progress=$progress"
         if (line == lastRaw) return
         lastRaw = line
         append("    RAW  $line")

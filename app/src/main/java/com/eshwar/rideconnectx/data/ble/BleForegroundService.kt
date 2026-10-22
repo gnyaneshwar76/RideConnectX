@@ -3,7 +3,9 @@ package com.eshwar.rideconnectx.data.ble
 import android.annotation.SuppressLint
 import android.app.*
 import android.bluetooth.*
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.IntentFilter
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Binder
@@ -44,6 +46,10 @@ class BleForegroundService : Service() {
         val CLUSTER_WRITE_NO_RESPONSE: UUID = UUID.fromString("00000001-0000-1000-8000-008025000000")
         val CLUSTER_NOTIFY: UUID = UUID.fromString("00000002-0000-1000-8000-008025000000")
         val CLUSTER_WRITE: UUID = UUID.fromString("00000003-0000-1000-8000-008025000000")
+
+        /** V-Strom (BM01) offers 0xFFF0 instead of 0xFEFB; seen live on a V-Strom cluster (services 1800 1801 180A FFF0). */
+        val MOTORCYCLE_SERVICE_UUID: UUID = UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")
+        val MOTORCYCLE_PREFERRED_WRITE: UUID = UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")
 
         const val CLUSTER_SERVICE_INDEX = 3
         const val CLUSTER_WRITE_INDEX = 0
@@ -98,6 +104,18 @@ class BleForegroundService : Service() {
 
     /** Set once service discovery has been judged (cluster found or not). */
     @Volatile private var setupDone = false
+
+    /** Motorcycle only: a connect that never answers (Samsung direct connect can hang for minutes) is dropped so the watcher retries. */
+    private val connectWatchdog = Runnable {
+        if (AttemptRules.isStuck(pendingAddress != null, linkedAddress != null)) {
+            Log.w(TAG, "Connect attempt got no answer in ${AttemptRules.MOTORCYCLE_CONNECT_TIMEOUT_MS} ms - dropping it so it is retried")
+            closeGatt()
+            pendingAddress = null
+            retryCount = 0
+            _connectionState.tryEmit(BluetoothProfile.STATE_DISCONNECTED)
+            updateNotification("Disconnected")
+        }
+    }
 
     private val setupWatchdog = Runnable {
         if (bluetoothGatt != null && linkedAddress != null && !setupDone) failLink("setup timed out")
@@ -167,6 +185,13 @@ class BleForegroundService : Service() {
         @SuppressLint("MissingPermission")
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             Log.d(TAG, "onConnectionStateChange: status=$status, newState=$newState")
+            if (gatt === bluetoothGatt) LinkDiagnostics.update {
+                it.copy(
+                    lastGattStatus = status,
+                    gattConnected = if (newState == BluetoothProfile.STATE_CONNECTED) true else if (newState == BluetoothProfile.STATE_DISCONNECTED) false else it.gattConnected,
+                    lastDisconnectStatus = if (newState == BluetoothProfile.STATE_DISCONNECTED) status else it.lastDisconnectStatus,
+                )
+            }
             // A client we already replaced must not drive the current link. On
             // 11 Sep 2026 an old client kept delivering frames while the live
             // one was gone — reads looked healthy, every write failed.
@@ -185,6 +210,8 @@ class BleForegroundService : Service() {
                     _connectionState.tryEmit(newState)
                     updateNotification("Connected to $connectedDeviceName")
                     setupDone = false
+                    bondRequested = false
+                    mainHandler.removeCallbacks(connectWatchdog)
                     mainHandler.removeCallbacks(setupWatchdog)
                     mainHandler.postDelayed(setupWatchdog, SETUP_TIMEOUT_MS)
                     commandQueue.addCommand(GattCommand.RequestMtu(517), gatt)
@@ -219,6 +246,7 @@ class BleForegroundService : Service() {
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
             Log.d(TAG, "onMtuChanged: mtu=$mtu, status=$status")
             if (gatt !== bluetoothGatt) return
+            LinkDiagnostics.update { it.copy(mtu = mtu) }
             commandQueue.onCommandCompleted(gatt)
             commandQueue.addCommand(GattCommand.DiscoverServices(), gatt)
         }
@@ -236,6 +264,12 @@ class BleForegroundService : Service() {
             }
 
             val services = gatt.services
+            // FFF0 characteristics are listed too (short id:properties), so the next step needs no guessing.
+            val fff0Chars = gatt.getService(MOTORCYCLE_SERVICE_UUID)?.characteristics.orEmpty()
+                .map { "${LinkDiagnostics.shortUuid(it.uuid.toString())}:${describeProps(it.properties)}" }
+            LinkDiagnostics.update { d ->
+                d.copy(services = services.map { LinkDiagnostics.shortUuid(it.uuid.toString()) } + fff0Chars)
+            }
             Log.i(TAG, "===== GATT PROFILE for $connectedDeviceName =====")
             Log.i(TAG, "Services discovered: ${services.size}")
 
@@ -255,8 +289,10 @@ class BleForegroundService : Service() {
             // Subscribing to every notify characteristic means whatever the
             // scooter volunteers is captured, rather than guessed at.
             services.flatMap { it.characteristics }
-                .filter { it.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0 }
+                .filter { shouldSubscribe(it.properties, currentFamily()) }
                 .forEach { enableNotifications(gatt, it) }
+
+            maybeBond(gatt)
         }
 
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
@@ -264,7 +300,9 @@ class BleForegroundService : Service() {
             if (gatt !== bluetoothGatt) return
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.d(TAG, "Notification enabled success: ${descriptor.characteristic.uuid}")
+                LinkDiagnostics.update { it.copy(cccdOk = it.cccdOk + 1) }
             } else {
+                LinkDiagnostics.update { it.copy(cccdFailed = it.cccdFailed + 1, lastCccdFailStatus = status) }
                 Log.d(TAG, "Notification enabled failed: ${descriptor.characteristic.uuid}")
             }
             commandQueue.onCommandCompleted(gatt)
@@ -280,6 +318,7 @@ class BleForegroundService : Service() {
             if (gatt !== bluetoothGatt) return
             // Full frame, not truncated: the 0x37 telemetry field mapping is
             // still being worked out and every byte matters.
+            LinkDiagnostics.onRx(value)
             Log.d(TAG, "RX UUID=${characteristic.uuid} len=${value.size} hex=${value.toHexString()}")
             Log.d(TAG, "RX ascii=${value.joinToString("") { b -> if (b in 32..126) b.toInt().toChar().toString() else "." }}")
             _notifications.tryEmit(characteristic.uuid.toString() to value)
@@ -290,6 +329,7 @@ class BleForegroundService : Service() {
             if (gatt !== bluetoothGatt) return
             @Suppress("DEPRECATION")
             val value = characteristic.value
+            value?.let { LinkDiagnostics.onRx(it) }
             Log.d(TAG, "Characteristic changed received (Legacy): UUID=${characteristic.uuid}, Length=${value?.size ?: 0}")
             value?.let { _notifications.tryEmit(characteristic.uuid.toString() to it) }
         }
@@ -328,20 +368,23 @@ class BleForegroundService : Service() {
         // rule meant *any* peer that answered at the remembered address with
         // four services and a writable characteristic in that slot received the
         // rider's name, caller names and message previews — the address alone
-        // was being treated as proof of the scooter. Requiring 0xFEFB makes the
-        // vehicle identify itself before anything personal is written to it.
+        // was being treated as proof of the scooter. The cluster is recognised
+        // by its name pattern (profileFor) plus service 0xFEFB, or, for the
+        // motorcycle family only, service 0xFFF0. The vehicle identifies itself
+        // before anything personal is written to it.
         // It also gates `servicesReady`, which the profile and alert writes
         // both await, so an unrecognised peer is simply never written to.
-        val resolved = byUuid
+        val resolved = byUuid ?: motorcycleWriteCharacteristic(gatt)
 
         writeCharacteristic = resolved
+        LinkDiagnostics.update { it.copy(serviceFound = resolved != null) }
         setupDone = true
         mainHandler.removeCallbacks(setupWatchdog)
 
         if (resolved == null) {
             Log.e(
                 TAG,
-                "No $CLUSTER_SERVICE_UUID write characteristic — not the cluster; nothing will be sent",
+                "No write characteristic (FEFB, or FFF0 for the motorcycle family) — not the cluster; nothing will be sent",
             )
         } else {
             Log.i(
@@ -352,6 +395,22 @@ class BleForegroundService : Service() {
             _servicesReady.tryEmit(Unit)
         }
     }
+
+    /**
+     * Motorcycle family only: the 0xFFF0 service when 0xFEFB is absent. The official app
+     * writes to `services[3].characteristics[0]`, and on the V-Strom services[3] is FFF0,
+     * so its first characteristic wins when writable; else FFF2, else the first writable.
+     * Worked on a V-Strom on 22 Oct 2026 with navigation, calls and messages.
+     */
+    private fun motorcycleWriteCharacteristic(gatt: BluetoothGatt): BluetoothGattCharacteristic? {
+        if (!usesFff0Path(currentFamily())) return null
+        val service = gatt.getService(MOTORCYCLE_SERVICE_UUID) ?: return null
+        val chars = service.characteristics
+        return pickMotorcycleWriteIndex(chars.map { LinkDiagnostics.shortUuid(it.uuid.toString()) to it.properties })
+            ?.let { chars[it] }
+    }
+
+    private fun currentFamily() = com.eshwar.rideconnectx.domain.ProtocolEngine.profileFor(connectedDeviceName).family
 
     /**
      * Sends one 30-byte packet. Returns false when there is nothing to write to,
@@ -382,6 +441,7 @@ class BleForegroundService : Service() {
             }
 
         Log.d(TAG, "Data Packet-Main ${packet.toHexString()}")
+        LinkDiagnostics.onPacketSent(packet, com.eshwar.rideconnectx.domain.ProtocolEngine.complementChecksum)
         val result = kotlinx.coroutines.CompletableDeferred<Boolean>()
         commandQueue.addCommand(
             GattCommand.WriteCharacteristic(characteristic, packet, writeType, result),
@@ -413,6 +473,94 @@ class BleForegroundService : Service() {
         if (props and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) add("NOTIFY")
         if (props and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0) add("INDICATE")
     }.joinToString("|").ifEmpty { "NONE" }
+
+    private var bondRequested = false
+    private var bondReceiver: BroadcastReceiver? = null
+
+    /** Fires once per bond success so the repository can resend the profile packet. */
+    private val _bonded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val bonded = _bonded.asSharedFlow()
+
+    /**
+     * MOTORCYCLE only (see [BondPolicy]): ask Android to bond once per connect, then redo the
+     * CCCD writes when it succeeds. Any failure is recorded; the link stays up.
+     */
+    @SuppressLint("MissingPermission")
+    private fun maybeBond(gatt: BluetoothGatt) {
+        val family = com.eshwar.rideconnectx.domain.ProtocolEngine.profileFor(connectedDeviceName).family
+        if (family != com.eshwar.rideconnectx.domain.ClusterFamily.MOTORCYCLE) return
+        runCatching {
+            val device = gatt.device
+            LinkDiagnostics.update { it.copy(bond = bondName(device.bondState)) }
+            if (BondPolicy.shouldCreateBond(family, device.bondState == BluetoothDevice.BOND_NONE) && !bondRequested) {
+                bondRequested = true
+                registerBondReceiver(device.address)
+                val ok = device.createBond()
+                LinkDiagnostics.update { it.copy(createBondResult = ok, bond = if (ok) "bonding" else "failed") }
+                if (!ok) unregisterBondReceiver()
+            }
+        }.onFailure {
+            Log.w(TAG, "createBond failed", it)
+            LinkDiagnostics.update { d -> d.copy(bond = "failed", createBondResult = false) }
+            unregisterBondReceiver()
+        }
+        onVendorHandshake(gatt)
+    }
+
+    /**
+     * Hook for a later Telit-style credit handshake (indication on 00000004, credit write to
+     * 00000003). Deliberately empty: nothing is written to the bike here.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    private fun onVendorHandshake(gatt: BluetoothGatt) = Unit
+
+    private fun bondName(state: Int) = when (state) {
+        BluetoothDevice.BOND_BONDED -> "bonded"
+        BluetoothDevice.BOND_BONDING -> "bonding"
+        else -> "none"
+    }
+
+    private fun registerBondReceiver(address: String) {
+        unregisterBondReceiver()
+        val r = object : BroadcastReceiver() {
+            @SuppressLint("MissingPermission")
+            override fun onReceive(context: Context, intent: Intent) {
+                val d: BluetoothDevice? = if (Build.VERSION.SDK_INT >= 33) {
+                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+                } else {
+                    @Suppress("DEPRECATION") intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                }
+                if (d?.address != address) return
+                when (intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)) {
+                    BluetoothDevice.BOND_BONDED -> {
+                        LinkDiagnostics.update { it.copy(bond = "bonded") }
+                        unregisterBondReceiver()
+                        val g = bluetoothGatt
+                        if (g != null && g.device.address == address) {
+                            g.services.flatMap { it.characteristics }
+                                .filter { shouldSubscribe(it.properties, currentFamily()) }
+                                .forEach { enableNotifications(g, it) }
+                            _bonded.tryEmit(Unit)
+                        }
+                    }
+                    BluetoothDevice.BOND_NONE -> {
+                        LinkDiagnostics.update { it.copy(bond = "failed") }
+                        unregisterBondReceiver()
+                    }
+                }
+            }
+        }
+        androidx.core.content.ContextCompat.registerReceiver(
+            this, r, IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        bondReceiver = r
+    }
+
+    private fun unregisterBondReceiver() {
+        bondReceiver?.let { runCatching { unregisterReceiver(it) } }
+        bondReceiver = null
+    }
 
     /**
      * Turns on notifications for [char]: the local flag alone is not enough —
@@ -461,7 +609,12 @@ class BleForegroundService : Service() {
      * down — which is what happened to any rider who skipped the permission
      * step and then opened Pair Vehicle.
      */
+    private var hasLocationType = false
+    private var inForeground = false
+
     private fun startForegroundServiceWithNotification(): Boolean {
+        // Never drop the location type once held: a later start from the background would fail it.
+        if (hasLocationType) return true
         val notification = createNotification("Starting RideConnectX...")
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -477,10 +630,20 @@ class BleForegroundService : Service() {
                 val started = locationGranted && runCatching {
                     startForeground(1, notification, withLocation)
                 }.isSuccess
-                if (!started) startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+                // Logged so a ride log shows whether GPS can run with the screen off.
+                val typeText = if (started) "connectedDevice+location" else "connectedDevice ONLY (location granted=$locationGranted)"
+                Log.i(TAG, "Foreground type: $typeText")
+                runCatching {
+                    EntryPointAccessors.fromApplication(applicationContext, ServiceEntryPoint::class.java)
+                        .rideLog().diag("Foreground type: $typeText")
+                }
+                if (started) hasLocationType = true
+                // Already in the foreground without location: do not call again, it changes nothing.
+                else if (!inForeground) startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
             } else {
                 startForeground(1, notification)
             }
+            inForeground = true
             true
         } catch (e: Exception) {
             // SecurityException on a missing permission, ForegroundServiceStartNot
@@ -508,7 +671,7 @@ class BleForegroundService : Service() {
      *    quickly after a close is the other classic 133.
      */
     @SuppressLint("MissingPermission")
-    fun connect(deviceAddress: String) {
+    fun connect(deviceAddress: String, savedName: String? = null) {
         mainHandler.post {
             Log.d(TAG, "Connect requested: $deviceAddress")
             val manager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -527,7 +690,10 @@ class BleForegroundService : Service() {
                 return@post
             }
 
-            connectedDeviceName = device.name ?: FALLBACK_DEVICE_NAME
+            // Saved name covers a reconnect where the stack returns no name, so the motorcycle path is still chosen.
+            connectedDeviceName = ClusterNameChoice.pick(device.name, null, savedName?.takeIf { it.isNotBlank() })
+                ?: FALLBACK_DEVICE_NAME
+            LinkDiagnostics.reset()
 
             // Reconnect paths (the watcher, app start, the pairing screen) can
             // ask for the scooter we are already linked to. Tearing that link
@@ -557,6 +723,10 @@ class BleForegroundService : Service() {
             gattCallback,
             BluetoothDevice.TRANSPORT_LE,
         )
+        mainHandler.removeCallbacks(connectWatchdog)
+        if (currentFamily() == com.eshwar.rideconnectx.domain.ClusterFamily.MOTORCYCLE) {
+            mainHandler.postDelayed(connectWatchdog, AttemptRules.MOTORCYCLE_CONNECT_TIMEOUT_MS)
+        }
     }
 
     /**
@@ -581,7 +751,9 @@ class BleForegroundService : Service() {
 
     @SuppressLint("MissingPermission")
     private fun closeGatt() {
+        unregisterBondReceiver()
         mainHandler.removeCallbacks(setupWatchdog)
+        mainHandler.removeCallbacks(connectWatchdog)
         bluetoothGatt?.let {
             runCatching { it.disconnect() }
             runCatching { it.close() }

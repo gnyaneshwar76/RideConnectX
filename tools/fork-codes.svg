@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="620" viewBox="0 0 760 620" font-family="Arial, sans-serif">
+  <!-- N33 fork: which cluster code draws a fork. Arrow geometry of the
+       "now" and "proposed" tiles is copied from tools/bike-icon-paths.txt
+       (APK ic_step_<mappls>.xml, 300x300). The Maps tiles are hand sketches.
+       The cluster's own drawing can differ from the APK icon: look on the scooter. -->
+  <style>
+    .t { fill: #ffffff; font-size: 15px; }
+    .s { fill: #b8c4cc; font-size: 12px; }
+    .h { fill: #ffffff; font-size: 17px; font-weight: bold; }
+    .ln { fill: none; stroke: #ffffff; stroke-width: 16; stroke-linecap: round; stroke-linejoin: round; }
+    .dim { fill: none; stroke: #6f7f8a; stroke-width: 16; stroke-linecap: round; }
+    .pet { fill: #3a4650; }
+  </style>
+  <rect width="760" height="620" fill="#10171c"/>https://developer.apple.com/design/
+  <text x="20" y="30" class="h">N33 fork: Maps icon, code sent now, Bike code (proposal, not built)</text>
+
+  <text x="40" y="62" class="t">Maps showed</text>
+  <text x="290" y="62" class="t">Cluster now</text>
+  <text x="540" y="62" class="t">Bike proposal</text>https://developer.apple.com/design/
+
+  <!-- ===== Row 1: right ===== -->
+  <!-- Maps maneuver_off_ramp_slight_right (sketch): straight stem, arrowed branch to the right -->
+  <g transform="translate(40,75) scale(0.6)">
+    <rect width="300" height="300" rx="24" fill="#1e7a44"/>
+    <path class="dim" d="M110,280 L110,40"/>
+    <path class="ln" d="M110,200 L230,80"/>
+    <path class="ln" d="M150,70 L240,70 L240,160"/>
+  </g>
+  <text x="40" y="270" class="s">off_ramp_slight_right</text>
+  <text x="40" y="286" class="s">(and fork_right looks alike)</text>
+
+  <!-- Now: code 41 = mappls 51, ic_step_51 (photographed 11 Aug: plain up-right) -->
+  <g transform="translate(290,75) scale(0.6)">
+    <rect width="300" height="300" rx="24" fill="#000000"/>
+    <path class="pet" d="M110.84,138.89C49,141.68 3.52,150 3.52,150S49,158.31 110.84,161.1a40.66,40.66 0,0 1,0 -22.21Z"/>
+    <path class="pet" d="M116.74,173.46a586.39,586.39 0,0 0,-38.12 47.92,586.52 586.52,0 0,0 47.92,-38.13A40.92,40.92 0,0 1,116.74 173.46Z"/>
+    <path class="pet" d="M126.54,116.74A586.42,586.42 0,0 0,78.62 78.62a587.18,587.18 0,0 0,38.13 47.92A40.92,40.92 0,0 1,126.54 116.74Z"/>
+    <path class="pet" d="M138.89,189.16C141.69,251 150,296.48 150,296.48s8.32,-45.43 11.11,-107.31a40.66,40.66 0,0 1,-22.21 0Z"/>
+    <path class="pet" d="M161.11,110.84C158.32,49 150,3.52 150,3.52S141.69,49 138.89,110.84a40.65,40.65 0,0 1,22.21 0Z"/>
+    <path class="pet" d="M173.46,183.26a586.55,586.55 0,0 0,47.91 38.12,586.1 586.1,0 0,0 -38.12,-47.92A40.92,40.92 0,0 1,173.46 183.26Z"/>
+    <path class="pet" d="M183.26,126.53a586.92,586.92 0,0 0,38.12 -47.92,586.42 586.42,0 0,0 -47.92,38.12A40.92,40.92 0,0 1,183.26 126.53Z"/>
+    <path class="pet" d="M189.16,161.1C251,158.31 296.48,150 296.48,150S251,141.68 189.16,138.89a40.66,40.66 0,0 1,0 22.21Z"/>
+    <path class="ln" d="M235.22,65.09L56.68,243.64"/>
+    <path class="ln" d="M240.24,177.03l0.64,-116.6l-118.23,-1.13"/>
+  </g>
+  <text x="290" y="270" class="s">code 41 slight right</text>
+  <text x="290" y="286" class="s">photographed - plain diagonal</text>
+
+  <!-- Proposal: code 28 = mappls 20, ic_step_20 (stem + right branch) -->
+  <g transform="translate(540,75) scale(0.6)">
+    <rect width="300" height="300" rx="24" fill="#000000"/>
+    <path class="ln" d="M60.1,20.49L60.1,279.96"/>
+    <path class="ln" d="M212.61,38.01l-151.81,155.89l0,83.22"/>
+    <path class="ln" d="M239.09,147.41l0,-126.92l-125.73,0"/>
+  </g>
+  <text x="540" y="270" class="s">code 28 ramp/fork right</text>
+  <text x="540" y="286" class="s">APK icon, never seen on cluster</text>
+
+  <!-- ===== Row 2: left ===== -->
+  <g transform="translate(40,305) scale(0.6)">
+    <rect width="300" height="300" rx="24" fill="#1e7a44"/>
+    <path class="dim" d="M190,280 L190,40"/>
+    <path class="ln" d="M190,200 L70,80"/>
+    <path class="ln" d="M150,70 L60,70 L60,160"/>
+  </g>
+  <text x="40" y="500" class="s">off_ramp_slight_left</text>
+  <text x="40" y="516" class="s">(and fork_left looks alike)</text>
+
+  <!-- Now: code 19 = mappls 57, ic_step_57 (plain up-left) -->
+  <g transform="translate(290,305) scale(0.6)">
+    <rect width="300" height="300" rx="24" fill="#000000"/>
+    <path class="pet" d="M110.84,138.89C49,141.68 3.52,150 3.52,150S49,158.31 110.84,161.1a40.66,40.66 0,0 1,0 -22.21Z"/>
+    <path class="pet" d="M116.74,173.46a586.39,586.39 0,0 0,-38.12 47.92,586.52 586.52,0 0,0 47.92,-38.13A40.92,40.92 0,0 1,116.74 173.46Z"/>
+    <path class="pet" d="M126.54,116.74A586.42,586.42 0,0 0,78.62 78.62a587.18,587.18 0,0 0,38.13 47.92A40.92,40.92 0,0 1,126.54 116.74Z"/>
+    <path class="pet" d="M138.89,189.16C141.69,251 150,296.48 150,296.48s8.32,-45.43 11.11,-107.31a40.66,40.66 0,0 1,-22.21 0Z"/>
+    <path class="pet" d="M161.11,110.84C158.32,49 150,3.52 150,3.52S141.69,49 138.89,110.84a40.65,40.65 0,0 1,22.21 0Z"/>
+    <path class="pet" d="M173.46,183.26a586.55,586.55 0,0 0,47.91 38.12,586.1 586.1,0 0,0 -38.12,-47.92A40.92,40.92 0,0 1,173.46 183.26Z"/>
+    <path class="pet" d="M183.26,126.53a586.92,586.92 0,0 0,38.12 -47.92,586.42 586.42,0 0,0 -47.92,38.12A40.92,40.92 0,0 1,183.26 126.53Z"/>
+    <path class="pet" d="M189.16,161.1C251,158.31 296.48,150 296.48,150S251,141.68 189.16,138.89a40.66,40.66 0,0 1,0 22.21Z"/>
+    <path class="ln" d="M63.66,64.39L242.21,242.93"/>
+    <path class="ln" d="M175.6,59.37l-116.61,-0.64l-1.13,118.23"/>
+  </g>
+  <text x="290" y="500" class="s">code 19 slight left</text>
+  <text x="290" y="516" class="s">plain diagonal (APK icon)</text>
+
+  <!-- Proposal: code 27 = mappls 19, ic_step_19 (stem + left branch) -->
+  <g transform="translate(540,305) scale(0.6)">
+    <rect width="300" height="300" rx="24" fill="#000000"/>
+    <path class="ln" d="M237.32,20.09L237.32,279.9"/>
+    <path class="ln" d="M86.32,38.52l150.4,154.35l0,82.4"/>
+    <path class="ln" d="M60.1,146.84l0,-125.66l124.49,0"/>
+  </g>
+  <text x="540" y="500" class="s">code 27 ramp/fork left</text>
+  <text x="540" y="516" class="s">APK icon, never seen on cluster</text>
+
+  <text x="20" y="560" class="s">fork_right is already sent as 32 and fork_left as 31: both photographed 11 Aug as a Y fork, no change proposed.</text>
+  <text x="20" y="580" class="s">Locked table unchanged. To test: hold 27, then 28, on the cluster with the debug hook (see the report). Owner decides.</text>
+  <text x="20" y="600" class="s">Picture is the APK's phone icon; the cluster's own drawing may differ (31-37 band showed such differences).</text>
+</svg>

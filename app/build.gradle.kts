@@ -31,8 +31,9 @@ android {
         minSdk = 28
         targetSdk = 35
         // Raise versionCode by 1 for every APK that must install over the last one.
-        versionCode = 2
-        versionName = "1.0.0"
+        // 3 = 1.0.0-tester, 4 = 1.0.1-tester (testers only). The next real release must be higher.
+        versionCode = 4
+        versionName = "1.0.1-tester"
         buildConfigField("boolean", "CLOUD_ENABLED", "true")
         buildConfigField("boolean", "RIDE_LOG_DEFAULT_ON", "false")
 

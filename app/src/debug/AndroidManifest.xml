@@ -32,6 +32,7 @@
                 <action android:name="com.eshwar.rideconnectx.TEST_MISSED" />
                 <action android:name="com.eshwar.rideconnectx.TEST_SCAN_EMPTY" />
                 <action android:name="com.eshwar.rideconnectx.TEST_DEVICE_NAME" />
+                <action android:name="com.eshwar.rideconnectx.TEST_FAKE" />
             </intent-filter>
         </receiver>
 

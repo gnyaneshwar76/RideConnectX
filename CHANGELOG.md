@@ -2,6 +2,28 @@
 
 All notable changes to RideConnectX. Format: Keep a Changelog. Versions follow the release tag.
 
+## [1.0.1-tester] - 2026-10-22 (testers only)
+
+### Added
+- V-Strom / Gixxer family dashboards (BM01): connect, navigation, calls, messages, ride stats.
+- Navigation page: "Allow background run" pop-up (once, after install) and a reminder while it is off.
+- Connection details in About > Information.
+
+### Fixed
+- Remaining distance on Android 16 Google Maps: always the real km, counted down between Maps updates; no blank box.
+- Next-turn metres keep counting with the screen off; no jumps back up.
+- Calls on Samsung phones: a ringing call is no longer mistaken for an answered one.
+- Arrival time read from "Arrive 5:17 pm".
+- Faster reconnect when a motorcycle dashboard does not answer.
+
+### Known limits
+- Not yet proven on a ride with this build: screen-off metres, reconnect, the Samsung background page.
+
+## [1.0.0-tester] - 2026-10 (testers only)
+
+### Added
+- Report a problem button, tester guide.
+
 ## [1.0.0] - 2026-10 (first public release)
 
 ### Added
@@ -9,7 +31,7 @@ All notable changes to RideConnectX. Format: Keep a Changelog. Versions follow t
   route map, Keep / Delete for every ride, 30-day auto-delete, cloud copy of up to
   10 kept rides when signed in. GPS saver wakes at once when the phone moves.
 - Email-link sign-in: get a one-tap sign-in link by email (link lives 10 minutes,
-  60 s before you can ask again, 5 requests an hour).
+  60 s before you can ask again, 5 requests per 24 hours per phone).
 - Recent sign-ins on the Profile page.
 
 ### Changed

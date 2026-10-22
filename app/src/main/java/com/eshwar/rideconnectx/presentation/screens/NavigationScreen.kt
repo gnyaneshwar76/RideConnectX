@@ -103,6 +103,45 @@ fun NavigationScreen(
     // a Settings page rather than by a dialog — so re-check whenever we return.
     val notificationAccess = rememberNotificationAccess()
 
+    // Background run: one pop-up on the first visit after install, then a reminder
+    // while it is off. Re-read on every resume (the rider returns from Settings).
+    val backgroundRun = com.eshwar.rideconnectx.core.util.rememberBackgroundRunAccess()
+    val popupShown by vm.popupShown.collectAsStateWithLifecycle()
+    var showPopup by remember { mutableStateOf(false) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) backgroundRun.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    // firstOpen = this composition; the saved flag stops every later visit.
+    LaunchedEffect(popupShown) {
+        val shown = popupShown ?: return@LaunchedEffect
+        if (com.eshwar.rideconnectx.core.util.BackgroundRunRules.showPopup(backgroundRun.granted, shown, true)) {
+            showPopup = true
+            vm.markPopupShown()
+        }
+    }
+    if (showPopup) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showPopup = false },
+            title = { Text(stringResource(R.string.bgrun_title)) },
+            text = { Text(stringResource(R.string.bgrun_body)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showPopup = false; backgroundRun.request() }) {
+                    Text(stringResource(R.string.bgrun_allow))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showPopup = false }) {
+                    Text(stringResource(R.string.bgrun_later))
+                }
+            },
+        )
+    }
+
     val openMaps = {
         vm.onHandOffToMaps()
         try {
@@ -206,6 +245,23 @@ fun NavigationScreen(
                     Divider()
                     // Speed comes from the bike, so it is live even with no route.
                     Readout("Speed", speed?.let { "$it km/h" } ?: "—", true, Modifier.weight(1f))
+                }
+
+                if (com.eshwar.rideconnectx.core.util.BackgroundRunRules.showReminder(backgroundRun.granted)) {
+                    Spacer(Modifier.height(12.dp))
+                    val reminder = stringResource(R.string.bgrun_reminder)
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(c.amber.copy(alpha = 0.10f))
+                            .padding(start = 14.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(reminder, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.text, modifier = Modifier.weight(1f))
+                        androidx.compose.material3.TextButton(onClick = backgroundRun.request) {
+                            Text(stringResource(R.string.bgrun_enable))
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(16.dp))

@@ -304,22 +304,40 @@ class MapsNotificationListener : NotificationListenerService() {
             EntryPointAccessors
                 .fromApplication(applicationContext, ServiceEntryPoint::class.java)
                 .rideLog()
-                .raw(title, text, subText, iconName, iconId)
+                .raw(title, text, subText, iconName, iconId,
+                    "${extras.getInt(Notification.EXTRA_PROGRESS, 0)}/${extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)}")
         }
 
-        if (title.isBlank() && text.isBlank()) return
+        // Android 16 "live update" Maps (ProgressStyle, Samsung S23 FE, 22 Oct 2026): see
+        // MapsNotificationParser.liveUpdateFields. Old-layout frames come back unchanged.
+        val live = MapsNotificationParser.liveUpdateFields(
+            title, text, subText,
+            progress = extras.getInt(Notification.EXTRA_PROGRESS, 0),
+            progressMax = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0),
+            chipTexts = listOf(
+                "android.ongoingActivityNoti.primaryInfo",
+                "android.ongoingActivityNoti.chipExpandedText",
+                "android.shortCriticalText",
+            ).map { extras.getCharSequence(it)?.toString().orEmpty() },
+        )
+        val navTitle = live?.title ?: title
+        val navText = live?.text ?: text
+        val navSubText = live?.subText ?: subText
+
+        if (navTitle.isBlank() && navText.isBlank()) return
+        if (MapsNotificationParser.isStarting(title)) return
 
         // Maps is working out a new route (rider left the planned one). The
         // cluster has no reroute icon, so the relay shows a "working" frame
         // until the next real instruction arrives.
-        if (MapsNotificationParser.isReroute("$title $text")) {
-            Log.d(TAG, "Reroute: title='$title' text='$text'")
-            relay.submitReroute("$title | $text")
+        if (MapsNotificationParser.isReroute("$navTitle $navText")) {
+            Log.d(TAG, "Reroute: title='$navTitle' text='$navText'")
+            relay.submitReroute("$navTitle | $navText")
             return
         }
 
         val parsed = MapsNotificationParser.parse(
-            title, text, subText, iconName, arrowMatch?.code,
+            navTitle, navText, navSubText, iconName, arrowMatch?.code,
         )
         if (parsed == null) {
             Log.v(TAG, "Maps notification ignored: title='$title' text='$text'")
@@ -391,8 +409,11 @@ class MapsNotificationListener : NotificationListenerService() {
                 // (CallStyle ongoing = 2): do not light the lamp for it. Phone
                 // state would need READ_PHONE_STATE, so the notification stays
                 // the source (CHK-32).
+                // Samsung's in-call UI posts a RINGING call as callType 2 too ("Incoming call",
+                // hang-up action only); only the ringing one carries a full-screen intent
+                // (seen on a Samsung S23 FE, 22 Oct 2026).
                 val callType = sbn.notification.extras?.getInt("android.callType", 0) ?: 0
-                if (callType == 2) {
+                if (isAnsweredCall(callType, sbn.notification.fullScreenIntent != null)) {
                     missedTracker.onAnswered(callKey(sbn))
                     ClusterAlerts.onCallEnded(who, ClusterAlerts.CallEnd.ANSWERED)
                     return
@@ -561,6 +582,8 @@ object MapsNotificationParser {
     private val ETA_MINUTES = Regex("""(\d+)\s*min""", RegexOption.IGNORE_CASE)
     /** "11:07 am ETA" / "14:53 ETA" — the arrival clock Maps shows. */
     private val ETA_CLOCK = Regex("""(\d{1,2}):(\d{2})[\s  ]*([ap]\.?m\.?)?[\s  ]*ETA""", RegexOption.IGNORE_CASE)
+    /** Android 16 live-update Maps writes "Arrive 5:01 pm" instead of "5:01 pm ETA"; same groups. */
+    private val ARRIVE_CLOCK = Regex("""Arriv\w*[\s  ]+(\d{1,2}):(\d{2})[\s  ]*([ap]\.?m\.?)?""", RegexOption.IGNORE_CASE)
     private val ETA_HOURS = Regex("""(\d+)\s*(?:hr|hour)""", RegexOption.IGNORE_CASE)
 
     /**
@@ -631,6 +654,9 @@ object MapsNotificationParser {
         return REROUTE_PHRASES.any { it in t }
     }
 
+    /** "Starting navigation..." (N99): no turn yet, so no frame; the first "Head ..." post starts the route. */
+    fun isStarting(s: String): Boolean = s.trim().lowercase().startsWith("starting navigation")
+
     private val REROUTE_PHRASES = listOf(
         "rerouting", "re-routing", "recalculating", "finding a new route",
         "finding a better route", "new route", "off route",
@@ -645,6 +671,45 @@ object MapsNotificationParser {
     private fun remainingMetres(subText: String): Int? {
         val last = DISTANCE.findAll(subText).map { it.value }.lastOrNull() ?: return null
         return distanceToMetres(last)
+    }
+
+    /** The three fields as the old layout would have carried them. */
+    data class LiveFields(val title: String, val text: String, val subText: String)
+
+    private val DISTANCE_ONLY = Regex("""\s*\d+(?:[.,]\d+)?\s*(?:km|m|mi|ft|yd)\s*""", RegexOption.IGNORE_CASE)
+    private val DISTANCE_DOT_TEXT = Regex(
+        """\s*(\d+(?:[.,]\d+)?[\s  ]*(?:km|m|mi|ft|yd))[\s  ]*[·•][\s  ]*(.+)""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    /**
+     * Android 16 live-update Maps: text is blank and the title is the instruction, either
+     * "Turn left" or "120 m · Turn left"; progressMax - progress is the metres left of the
+     * route (25846 for a 26 km route). Returns the old layout (title = distance, text =
+     * instruction, subText ends with the remaining km), or null when this is not a live-update frame.
+     * Seen in the owner's ride log 4 (Samsung, Android 16). shortcut: no distance anywhere
+     * (first frame, "Head north") gives "0 m"; the GPS countdown takes over.
+     */
+    fun liveUpdateFields(
+        title: String, text: String, subText: String,
+        progress: Int, progressMax: Int, chipTexts: List<String> = emptyList(),
+    ): LiveFields? {
+        if (text.isNotBlank() || title.isBlank() || DISTANCE_ONLY.matches(title)) return null
+        val split = DISTANCE_DOT_TEXT.matchEntire(title)
+        if (progressMax <= 0 && split == null) return null
+        val distance = split?.groupValues?.get(1)
+            ?: chipTexts.firstOrNull { distanceToMetres(it) != null } ?: "0 m"
+        val left = (progressMax - progress).coerceAtLeast(0)
+        val remaining = when {
+            progressMax <= 0 || progress < 0 || progress > progressMax -> ""
+            left >= 1000 -> "%.1f km".format(java.util.Locale.US, left / 1000f)
+            else -> "$left m"
+        }
+        return LiveFields(
+            title = distance,
+            text = split?.groupValues?.get(2)?.trim() ?: title,
+            subText = listOf(subText.trim(), remaining).filter { it.isNotBlank() }.joinToString(" · "),
+        )
     }
 
     /** "400 m" / "1,2 km" / "0.5 mi" / "50 ft" to metres; null when there is no distance. */
@@ -761,7 +826,7 @@ object MapsNotificationParser {
      * minute off Maps on a quarter of frames, so Maps' own figure is used.
      */
     internal fun parseEtaClock(source: String): String? {
-        val m = ETA_CLOCK.find(source) ?: return null
+        val m = ETA_CLOCK.find(source) ?: ARRIVE_CLOCK.find(source) ?: return null
         var hour = m.groupValues[1].toInt()
         val minute = m.groupValues[2]
         val ampm = m.groupValues[3].replace(".", "").uppercase().ifBlank {
@@ -777,6 +842,10 @@ object MapsNotificationParser {
         return total.takeIf { it > 0 }
     }
 }
+
+/** CallStyle ongoing (2) is an answered call, unless it carries a full-screen intent: Samsung's ringing one does. */
+internal fun isAnsweredCall(callType: Int, hasFullScreenIntent: Boolean): Boolean =
+    callType == 2 && !hasFullScreenIntent
 
 /** Notification.FLAG_GROUP_SUMMARY: the bundle header, not a message of its own. */
 internal fun isGroupSummary(flags: Int): Boolean = flags and Notification.FLAG_GROUP_SUMMARY != 0

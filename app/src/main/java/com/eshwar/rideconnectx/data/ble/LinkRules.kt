@@ -45,6 +45,14 @@ object ReconnectPolicy {
     fun nextDelay(current: Long): Long = (current * 2).coerceAtMost(MAX_MS)
 }
 
+/** Motorcycle path: how long one connect may stay silent before it is dropped and retried. */
+object AttemptRules {
+    const val MOTORCYCLE_CONNECT_TIMEOUT_MS = 10_000L
+
+    /** An attempt is stuck when it is still pending but no GATT link came up. */
+    fun isStuck(pending: Boolean, linked: Boolean): Boolean = pending && !linked
+}
+
 /**
  * Heartbeat bytes 14/15 are CLEAR flags (official app: 'N' after an alert,
  * 'Y' only when it is cleared). Idle and during an alert they stay 'N'; when

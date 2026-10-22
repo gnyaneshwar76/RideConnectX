@@ -314,6 +314,14 @@ class MapsNotificationParserTest {
         assertEquals("0253PM", MapsNotificationParser.parseEtaClock("15 min · 6.3 km · 2:53 pm ETA"))
         assertEquals("0253PM", MapsNotificationParser.parseEtaClock("15 min · 6.3 km · 14:53 ETA"))
         assertEquals("1205AM", MapsNotificationParser.parseEtaClock("5 min · 1 km · 00:05 ETA"))
+        // Android 16 live-update Maps (Samsung S23 FE, 22 Oct 2026)
+        assertEquals("0501PM", MapsNotificationParser.parseEtaClock("Arrive 5:01 pm"))
+        // Live-update frame after mapping: title = metres from progress, text = instruction
+        MapsNotificationParser.parse("200 m", "Head north", "Arrive 6:32 pm · 25.8 km").let {
+            assertEquals("200 m", it?.distanceToTurn)
+            assertEquals("25.8 km", it?.remainingDistance)
+            assertEquals("0632PM", it?.etaClock)
+        }
         assertNull(MapsNotificationParser.parseEtaClock("1 hr 5 min · 40 km"))
     }
 
@@ -337,5 +345,84 @@ class MapsNotificationParserTest {
     fun `group summary flag is detected`() {
         assertTrue(isGroupSummary(android.app.Notification.FLAG_GROUP_SUMMARY))
         assertTrue(!isGroupSummary(0))
+    }
+
+    // ---- Android 16 live-update layout; titles and sub texts copied from the owner's ride log 4 ----
+
+    private fun live(title: String, text: String = "", sub: String, progress: Int = 0, max: Int = 0, chips: List<String> = emptyList()) =
+        MapsNotificationParser.liveUpdateFields(title, text, sub, progress, max, chips)
+
+    private fun parseLive(f: MapsNotificationParser.LiveFields) =
+        MapsNotificationParser.parse(f.title, f.text, f.subText)
+
+    @Test
+    fun `live update with distance in the title is split and gets remaining km`() {
+        val f = live("120 m · Turn left", sub = "Arrive 5:17 pm", progress = 1000, max = 26846)!!
+        assertEquals("120 m", f.title)
+        assertEquals("Turn left", f.text)
+        val m = parseLive(f)!!
+        assertEquals("120 m", m.distanceToTurn)
+        assertEquals("Turn left", m.instruction)
+        assertEquals("25.8 km", m.remainingDistance)
+        assertEquals("0517PM", m.etaClock)
+        assertEquals(ProtocolEngine.Maneuver.TURN_LEFT, m.maneuverId)
+    }
+
+    @Test
+    fun `live update title without distance takes it from the chip, else 0 m, and still gets remaining`() {
+        val a = live("Turn left", sub = "Arrive 5:17 pm", progress = 25000, max = 25846, chips = listOf("", "20 m"))!!
+        assertEquals("20 m", a.title)
+        assertEquals("Turn left", a.text)
+        assertEquals("846 m", parseLive(a)!!.remainingDistance)
+        val b = live("Head toward Rushi School Rd", sub = "Arrive 5:28 pm", max = 4200)!!
+        assertEquals("0 m", b.title)
+        assertEquals("4.2 km", parseLive(b)!!.remainingDistance)
+    }
+
+    @Test
+    fun `live update place name near the end is arrival`() {
+        val f = live("SRI DEVI RESIDENCY", sub = "Arrive 5:27 pm", progress = 780, max = 800)!!
+        val m = parseLive(f)!!
+        assertEquals("SRI DEVI RESIDENCY", m.instruction)
+        assertEquals("20 m", m.remainingDistance)
+    }
+
+    @Test
+    fun `live update split keeps long road names and a 450 m title`() {
+        val f = live("450 m · Turn right onto Vayushakti Nagar Rd", sub = "Arrive 5:28 pm", progress = 100, max = 5100)!!
+        assertEquals("450 m", f.title)
+        assertEquals("Turn right onto Vayushakti Nagar Rd", f.text)
+        assertEquals("5.0 km", parseLive(f)!!.remainingDistance)
+    }
+
+    @Test
+    fun `live update rerouting and arriving frames`() {
+        val r = live("Rerouting...", sub = "Arrive ", progress = 0, max = 5000)!!
+        assertTrue(MapsNotificationParser.isReroute("${r.title} ${r.text}"))
+        // Arriving: text is filled, so this is not a live-update frame and goes the old way.
+        assertNull(live("Arriving", text = "at SRI DEVI RESIDENCY", sub = "", max = 100))
+    }
+
+    @Test
+    fun `old layout and non navigation frames are untouched`() {
+        assertNull(live("400 m", text = "Turn left", sub = "12 min · 5 km · 2:53 pm ETA"))
+        assertNull(live("400 m", sub = "x", max = 5000))                 // distance-only title: old layout
+        assertNull(live("Starting navigation…", sub = ""))              // no progress, no distance
+        assertNull(live("", sub = "", max = 5000))
+    }
+
+    @Test
+    fun `live update with no progress still splits but sends no remaining`() {
+        val f = live("120 m · Turn left", sub = "Arrive 5:17 pm")!!
+        assertEquals("Arrive 5:17 pm", f.subText)
+        assertEquals("", parseLive(f)!!.remainingDistance)
+    }
+
+    @Test
+    fun `ringing Samsung call carries a full screen intent, an answered one does not`() {
+        assertTrue(isAnsweredCall(callType = 2, hasFullScreenIntent = false))
+        assertTrue(!isAnsweredCall(callType = 2, hasFullScreenIntent = true))
+        assertTrue(!isAnsweredCall(callType = 1, hasFullScreenIntent = true))   // incoming (Pixel)
+        assertTrue(!isAnsweredCall(callType = 0, hasFullScreenIntent = false))  // not CallStyle
     }
 }

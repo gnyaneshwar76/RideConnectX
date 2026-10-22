@@ -33,6 +33,8 @@
     <!-- Notification Permission (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Used only to ask the user once to let navigation keep running with the screen off; GitHub APK; a Play upload would need the Play declaration form -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!--
       Signal bars on the instrument cluster. Without this the heartbeat reports

@@ -130,7 +130,7 @@ object LegalContent {
         LegalSection(
             "1. Introduction",
             "RideConnectX shows turn-by-turn directions, alerts and your name on your scooter's instrument cluster over Bluetooth. Last updated 17 October 2026.",
-            tail = "This policy explains what the app collects, where it goes, and what stays on your phone. Nothing is sold, and nothing is shared with advertisers. The app has no analytics, no advertising and no advertising identifier. The Bluetooth link to the cluster is not encrypted: caller and sender names cross the air in plain text.",
+            tail = "This policy explains what the app collects, where it goes, and what stays on your phone. Nothing is sold, and nothing is shared with advertisers. The app has no analytics, no advertising and no advertising identifier. The Bluetooth link to the cluster is not encrypted: caller and sender names cross the air in plain text. Report a problem opens your mail app with a pre-filled message; nothing is sent unless you press send.",
         ),
         LegalSection(
             "2. Stays on your phone",

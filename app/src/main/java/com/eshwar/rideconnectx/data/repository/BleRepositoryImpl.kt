@@ -471,6 +471,11 @@ class BleRepositoryImpl @Inject constructor(
         Log.d(TAG, "Connect requested: $address")
         userDisconnected = false
         if (dormant) setClosed(false)
+        // App is visible now: ask the running service to retry the location type, which
+        // Android refuses when the service was first started from the background.
+        if (_isServiceBound.value) {
+            runCatching { context.startForegroundService(Intent(context, BleForegroundService::class.java)) }
+        }
         wake.trySend(Unit)
         startLink(address)
         return _connectionState
@@ -533,7 +538,7 @@ class BleRepositoryImpl @Inject constructor(
                 .onStart {
                     // Runs once the collector is attached, so no state is missed.
                     Log.d(TAG, "Subscribed; issuing connect for $address")
-                    service.connect(address)
+                    service.connect(address, sessionDataStore.lastDeviceName.first())
                 }
                 .map { state ->
                     when (state) {
@@ -573,6 +578,18 @@ class BleRepositoryImpl @Inject constructor(
                             // Status first: it is a single packet, and starting
                             // it after the ten profile repeats left the cluster
                             // without battery or signal for ten seconds.
+                            // Pick the checksum rule from the name the service just read,
+                            // before the first beat can go out (first-connect race).
+                            val chosen = com.eshwar.rideconnectx.data.ble.ClusterNameChoice.pick(
+                                service.resolvedDeviceName, name, sessionDataStore.lastDeviceName.first(),
+                            )
+                            com.eshwar.rideconnectx.domain.ProtocolEngine.configureForDevice(chosen)
+                            com.eshwar.rideconnectx.domain.ProtocolEngine.profileFor(chosen).let {
+                                com.eshwar.rideconnectx.data.ble.LinkDiagnostics.setProfile(it.nameCode, it.family)
+                            }
+                            // After a bond (motorcycle only) the greeting is sent again.
+                            bondedJob?.cancel()
+                            bondedJob = repositoryScope.launch { service.bonded.collect { sendProfile() } }
                             startHeartbeat()
                             // The cluster's WELCOME line comes from the profile
                             // packet, so it goes out as part of connecting.
@@ -597,6 +614,12 @@ class BleRepositoryImpl @Inject constructor(
     override fun onAppOpened() {
         if (dormant) setClosed(false)
         wake.trySend(Unit)
+        // The app is visible now, so Android lets a running service take location. Once per
+        // activity start, never from a loop; a refusal is only logged.
+        if (_isServiceBound.value) {
+            runCatching { context.startForegroundService(Intent(context, BleForegroundService::class.java)) }
+                .onFailure { Log.w(TAG, "start on app open refused: ${it.javaClass.simpleName}") }
+        }
     }
 
     override fun reconnectLastDevice() {
@@ -693,6 +716,7 @@ class BleRepositoryImpl @Inject constructor(
      */
     /** The pending "save this peer once it proves itself" wait. One at a time. */
     private var sessionSaveJob: kotlinx.coroutines.Job? = null
+    private var bondedJob: kotlinx.coroutines.Job? = null
 
     private var profileJob: kotlinx.coroutines.Job? = null
 
@@ -714,7 +738,7 @@ class BleRepositoryImpl @Inject constructor(
             // the first hardware run proved by reporting sent=false.
             bleService?.servicesReady?.first()
 
-            val clusterName = sessionDataStore.lastDeviceName.first()
+            val clusterName = bleService?.resolvedDeviceName ?: sessionDataStore.lastDeviceName.first()
 
             // The checksum branch depends on the vehicle model, which the
             // official app reads out of the advertised name.

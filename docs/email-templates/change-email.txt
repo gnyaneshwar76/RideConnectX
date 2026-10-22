@@ -1,0 +1,16 @@
+Your RideConnectX sign-in email was changed
+
+Hello %DISPLAY_NAME%,
+
+The sign-in email of your RideConnectX account was changed to %NEW_EMAIL%. This message was sent to your previous address %EMAIL%.
+
+If you made this change, you do not need to do anything.
+
+If you did not make this change, use the button below to restore your previous sign-in email.
+
+Undo this change: %LINK%
+
+If you did not make this change, someone else may have access to your account. Use the button above right away.
+
+--
+RideConnectX · rideconnectx.app@gmail.com

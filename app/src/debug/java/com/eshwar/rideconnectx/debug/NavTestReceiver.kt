@@ -98,7 +98,45 @@ class NavTestReceiver : BroadcastReceiver() {
          * SCE100000000): `--es name SBM010000000`. Sets BleRepositorySimulatorImpl.deviceName.
          */
         const val ACTION_DEVICE_NAME = "com.eshwar.rideconnectx.TEST_DEVICE_NAME"
+
+        /**
+         * Fake notification through the REAL MapsNotificationListener.onNotificationPosted
+         * (or onNotificationRemoved with `--ez remove true`): builds a Notification with the
+         * exact fields, wraps it in a StatusBarNotification (hidden constructor, reflection)
+         * and hands it to the bound listener. Needs notification access granted, else
+         * "listener not bound" is logged. See [FAKES] for `--es s <preset>`; any of
+         * --es pkg/title/text/sub/chip/cat, --ei progress/max/ctype/id, --ez fsi/ongoing override a preset.
+         */
+        const val ACTION_FAKE = "com.eshwar.rideconnectx.TEST_FAKE"
+
+        private const val MAPS = "com.google.android.apps.maps"
+        private const val CALL_PKG = "com.whatsapp" // always trusted; the Samsung/Google dialers are only trusted when system apps
+
+        /** Values from .claude/team/reports/N1-fake-notification-values.md (progress values are guesses, not logged). */
+        val FAKES: Map<String, Fake> = mapOf(
+            "old" to Fake(MAPS, "400 m", "Turn left", "12 min · 5 km · 2:53 pm ETA"),
+            "liveA" to Fake(MAPS, "Turn left", "", "Arrive 5:17 pm", progress = 1000, max = 26846),
+            "liveB" to Fake(MAPS, "120 m · Turn left", "", "Arrive 5:17 pm", progress = 1000, max = 26846),
+            "liveLong" to Fake(MAPS, "450 m · Turn right onto Vayushakti Nagar Rd", "", "Arrive 5:28 pm", progress = 5000, max = 26846),
+            "head" to Fake(MAPS, "Head toward Rushi School Rd", "", "Arrive 5:28 pm", progress = 0, max = 26846),
+            "reroute" to Fake(MAPS, "Rerouting...", "", "Arrive ", progress = 1000, max = 26846),
+            "arriving" to Fake(MAPS, "TEST PLACE", "", "Arrive 5:27 pm", progress = 26700, max = 26846),
+            "arrived" to Fake(MAPS, "Arriving", "at TEST PLACE", "", progress = 26846, max = 26846),
+            "starting" to Fake(MAPS, "Starting navigation…", "", "", progress = 0, max = 26846),
+            "callring" to Fake(CALL_PKG, "Test Caller", "Incoming call", "", cat = "call", ctype = 2, fsi = true, ongoing = true),
+            // Samsung branch: trusted only if the package is installed as a system app (not on emulators), else IGNORED is logged.
+            "callsamsung" to Fake("com.samsung.android.dialer", "Test Caller", "Incoming call", "", cat = "call", ctype = 2, fsi = true, ongoing = true),
+            "callans" to Fake(CALL_PKG, "Test Caller", "Ongoing call", "", cat = "call", ctype = 2, ongoing = true),
+            "callmiss" to Fake(CALL_PKG, "Test Caller", "Missed call", "", cat = "missed_call"),
+            "msg" to Fake("com.google.android.apps.messaging", "Test Sender", "Hello test", ""),
+        )
     }
+
+    data class Fake(
+        val pkg: String, val title: String, val text: String, val sub: String,
+        val progress: Int = 0, val max: Int = 0, val cat: String? = null,
+        val ctype: Int = 0, val fsi: Boolean = false, val ongoing: Boolean = false,
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -154,6 +192,11 @@ class NavTestReceiver : BroadcastReceiver() {
                 }
                 com.eshwar.rideconnectx.data.repository.BleRepositorySimulatorImpl.deviceName = name
                 Log.d(TAG, "[TEST] simulated device name=$name")
+                return
+            }
+            ACTION_FAKE -> {
+                runCatching { fakeNotification(context, intent) }
+                    .onFailure { Log.e(TAG, "[FAKE] failed: $it", it) }
                 return
             }
             ACTION_STOP -> {
@@ -215,6 +258,51 @@ class NavTestReceiver : BroadcastReceiver() {
                 relay.submit(maneuver)
             }
         }
+    }
+
+    private fun fakeNotification(context: Context, i: Intent) {
+        val name = i.getStringExtra("s") ?: "old"
+        val b = FAKES[name] ?: run { Log.w(TAG, "[FAKE] unknown preset '$name' in $FAKES".take(200)); return }
+        val f = b.copy(
+            pkg = i.getStringExtra("pkg") ?: b.pkg,
+            title = i.getStringExtra("title") ?: b.title,
+            text = i.getStringExtra("text") ?: b.text,
+            sub = i.getStringExtra("sub") ?: b.sub,
+            progress = i.getIntExtra("progress", b.progress),
+            max = i.getIntExtra("max", b.max),
+            cat = i.getStringExtra("cat") ?: b.cat,
+            ctype = i.getIntExtra("ctype", b.ctype),
+            fsi = i.getBooleanExtra("fsi", b.fsi),
+            ongoing = i.getBooleanExtra("ongoing", b.ongoing),
+        )
+        val listener = com.eshwar.rideconnectx.data.nav.MapsNotificationListener.instance
+        if (listener == null) { Log.e(TAG, "[FAKE] listener not bound - grant notification access first"); return }
+
+        val n = android.app.Notification.Builder(context).setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(f.title).setContentText(f.text).setSubText(f.sub).setOngoing(f.ongoing).build()
+        if (f.max > 0) { n.extras.putInt(android.app.Notification.EXTRA_PROGRESS, f.progress); n.extras.putInt(android.app.Notification.EXTRA_PROGRESS_MAX, f.max) }
+        i.getStringExtra("chip")?.let { n.extras.putCharSequence("android.shortCriticalText", it) }
+        n.category = f.cat
+        if (f.ctype != 0) n.extras.putInt("android.callType", f.ctype)
+        if (f.fsi) n.fullScreenIntent = android.app.PendingIntent.getActivity(
+            context, 0, Intent(), android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+        val sbn = newSbn(f.pkg, i.getIntExtra("id", 7001), n)
+        if (i.getBooleanExtra("remove", false)) listener.onNotificationRemoved(sbn) else listener.onNotificationPosted(sbn)
+        Log.d(TAG, "[FAKE] $name posted as ${f.pkg}")
+    }
+
+    /**
+     * StatusBarNotification has only a hidden public constructor
+     * (pkg, opPkg, id, tag, uid, pid, notification, user, overrideGroupKey, postTime).
+     * shortcut: reflection; if a new Android blocks it, the log says so (unproven on API 29-37).
+     */
+    private fun newSbn(pkg: String, id: Int, n: android.app.Notification): android.service.notification.StatusBarNotification {
+        val c = android.service.notification.StatusBarNotification::class.java.declaredConstructors
+            .first { it.parameterTypes.size == 10 }
+        c.isAccessible = true
+        return c.newInstance(pkg, pkg, id, null, android.os.Process.myUid(), android.os.Process.myPid(), n,
+            android.os.Process.myUserHandle(), null, System.currentTimeMillis()) as android.service.notification.StatusBarNotification
     }
 
     /** One Notifications row, same shape as the live listener's recordHistory. */

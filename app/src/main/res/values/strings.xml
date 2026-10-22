@@ -215,6 +215,21 @@
     <!-- 23 About -->
     <string name="about_title">About</string>
     <string name="about_information">Information</string>
+    <string name="about_report">Report a problem</string>
+    <string name="about_report_desc">Opens your mail app with a pre-filled message</string>
+    <string name="conn_title">Connection details</string>
+    <string name="conn_none">No connection tried in this session.</string>
+    <string name="conn_vehicle">Vehicle: %1$s</string>
+    <string name="conn_gatt">GATT: %1$s (last status %2$s, disconnect status %3$s)</string>
+    <string name="conn_mtu">MTU: %1$s</string>
+    <string name="conn_services">Services: %1$s</string>
+    <string name="conn_service_fefb">Service FEFB: %1$s</string>
+    <string name="conn_cccd">Notifications: %1$d ok, %2$d failed (last failure %3$s)</string>
+    <string name="conn_bond">Bond: %1$s (createBond: %2$s)</string>
+    <string name="conn_sent">Sent: %1$s (%2$s)</string>
+    <string name="conn_received">Received: %1$d (last type %2$s)</string>
+    <string name="conn_age">Time since connect: %1$d s</string>
+    <string name="report_no_mail">No mail app found. Please write to %1$s</string>
     <string name="about_whats_new">What\'s new</string>
     <string name="about_tagline">Turn-by-turn navigation on your scooter\'s cluster.</string>
     <string name="about_version">VERSION</string>
@@ -439,4 +454,11 @@
     <string name="ride_phone_only_full">Stored on phone only: the cloud already holds 10 rides.</string>
     <string name="route_none">No route recorded</string>
     <string name="route_desc">Route map. Starts at the green dot, ends at the red dot. %1$s kilometres.</string>
+    <string name="bgrun_title">Allow background run?</string>
+    <string name="bgrun_body">So navigation keeps working with the screen off, set RideConnectX battery to Unrestricted.</string>
+    <string name="bgrun_allow">Open settings</string>
+    <string name="bgrun_later">Not now</string>
+    <string name="bgrun_reminder">For a better experience, enable background run</string>
+    <string name="bgrun_enable">Enable</string>
+    <string name="bgrun_manual">Open Settings &gt; Apps &gt; RideConnectX &gt; Battery &gt; Unrestricted</string>
 </resources>

@@ -1,0 +1,14 @@
+Confirm your email for RideConnectX
+
+Hello %DISPLAY_NAME%,
+
+Someone used %EMAIL% to create a RideConnectX account. Please confirm that this address is yours.
+
+This link works for a limited time.
+
+Confirm email: %LINK%
+
+If you did not request this, you can ignore this email. Nobody can access your account without this link.
+
+--
+RideConnectX · rideconnectx.app@gmail.com

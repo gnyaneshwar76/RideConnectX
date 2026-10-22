@@ -64,6 +64,7 @@ class NavigationRelay @Inject constructor(
         const val REPEAT_SKIP_MS = 1_000L
         /** How often the GPS countdown refreshes the cluster (4 times a second). */
         const val TICK_MS = 250L
+        const val TURN_JUMP_M = 150
     }
 
     /**
@@ -78,6 +79,7 @@ class NavigationRelay @Inject constructor(
         data class Reroute(val what: String) : Update
         data class Fix(val fix: GpsCountdown.Fix) : Update
         object Tick : Update
+        object HoldEnd : Update
         data class Link(val connected: Boolean) : Update
     }
     private val updates = Channel<Update>(Channel.UNLIMITED)
@@ -121,7 +123,9 @@ class NavigationRelay @Inject constructor(
      * the screen off, so the cluster always trailed the scooter. Maps still
      * sets every number; this only fills the gaps between its updates.
      */
-    private val countdown = GpsCountdown(::metresBetween)
+    // Never up on the same turn unless Maps is 150 m higher: Maps posts only every 5-6 s with the
+    // screen off, ~100 m of ride at 60 km/h, so a smaller gap is Maps being stale, not us over-counting.
+    private val countdown = GpsCountdown(::metresBetween, neverUp = true, jumpM = TURN_JUMP_M)
 
     private fun metresBetween(a: GpsCountdown.Fix, b: GpsCountdown.Fix): Double {
         val out = FloatArray(1)
@@ -135,11 +139,13 @@ class NavigationRelay @Inject constructor(
      * figure still moved only when Maps spoke). Keyed per route, so a reroute
      * starts again from Maps' new figure.
      */
-    private val remainingCountdown = GpsCountdown(::metresBetween, neverUp = true)
-    private var routeNumber = 0
+    private val remainingRule = RemainingRule(::metresBetween)
+    private var holdJob: Job? = null
     private var countdownOn = false
     private var locationCallback: LocationCallback? = null
     private var tickJob: Job? = null
+    private var fixCount = 0
+    private var fixWindowAt = 0L
 
     @SuppressLint("MissingPermission")
     private suspend fun startGps() {
@@ -156,11 +162,13 @@ class NavigationRelay @Inject constructor(
         }
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
-                val l = result.lastLocation ?: return
-                updates.trySend(Update.Fix(GpsCountdown.Fix(
+                // All of them, stamped with the fix's own time: with the screen off the
+                // fused provider can deliver several at once (ride log 4: counts froze 8-45 s).
+                fixCount += result.locations.size
+                for (l in result.locations) updates.trySend(Update.Fix(GpsCountdown.Fix(
                     lat = l.latitude, lon = l.longitude, accuracyM = l.accuracy,
                     speedMps = if (l.hasSpeed()) l.speed else 0f,
-                    atMs = SystemClock.elapsedRealtime(),
+                    atMs = l.elapsedRealtimeMillis,
                 )))
             }
         }
@@ -176,10 +184,19 @@ class NavigationRelay @Inject constructor(
             return
         }
         locationCallback = callback
+        fixCount = 0
+        fixWindowAt = 0L
         tickJob = appScope.launch {
             while (true) {
                 delay(TICK_MS)
                 updates.trySend(Update.Tick)
+                // Shows in the ride log whether fixes stop with the screen off. Counts only, no places.
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - fixWindowAt >= 10_000L) {
+                    if (_state.value is NavState.Active && fixWindowAt != 0L) rideLog.diag("GPS fixes=$fixCount in ${(now - fixWindowAt) / 1000}s")
+                    fixCount = 0
+                    fixWindowAt = now
+                }
             }
         }
     }
@@ -223,25 +240,30 @@ class NavigationRelay @Inject constructor(
     }
 
     /** Called for every maneuver update read from the Maps notification. */
-    suspend fun onManeuver(maneuver: NavManeuver) {
+    suspend fun onManeuver(fresh: NavManeuver) {
         // Settings → "Auto start navigation" off: a route started in Maps alone
         // stays off the cluster until the rider starts it from the app
         // ([awaitMaps]). The switch was saved but never read (AUD-3).
         if (_state.value is NavState.Inactive && !appSettings.settings.first().autoStartNavigation) return
         // Also restarts GPS after a stale-clear or a link drop (CHK-20).
         resumeLink()
+        // A post with no distance ("Head toward X") keeps the turn and its count; only ETA and
+        // remaining are taken from it. Otherwise the cluster flipped between two states (ride log 4).
+        val prev = (_state.value as? NavState.Active)?.maneuver
+        // A new route never inherits the last route's remaining distance.
+        if (prev == null) remainingRule.newRoute()
+        val carried = prev != null && keepsTurn(prev, fresh)
+        val maneuver = if (carried) carryTurn(prev!!, fresh) else fresh
         _state.value = NavState.Active(maneuver)
         rerouting = false
-        countdown.onMaps(
+        val now = SystemClock.elapsedRealtime()
+        if (!carried) countdown.onMaps(
             key = maneuver.instruction to maneuver.maneuverId,
             metres = maneuver.distanceMetres(),
-            nowMs = SystemClock.elapsedRealtime(),
+            nowMs = now,
         )
-        remainingCountdown.onMaps(
-            key = routeNumber,
-            metres = maneuver.remainingMetres(),
-            nowMs = SystemClock.elapsedRealtime(),
-        )
+        // This post's own figure only (not one carried from the previous post); unknown = keep counting.
+        remainingRule.onMaps(fresh.remainingMetres(), now)
         relay(maneuver)
         armWatchdog(arrived = maneuver.isArrival())
     }
@@ -269,6 +291,7 @@ class NavigationRelay @Inject constructor(
                 clearCluster()
                 // Nothing to show: stop GPS until Maps speaks again (CHK-20).
                 lastPacket = null
+                remainingRule.newRoute()
                 idleLink()
             }
         }
@@ -293,9 +316,12 @@ class NavigationRelay @Inject constructor(
                 is Update.Reroute -> onReroute(u.what)
                 is Update.Fix -> {
                     countdown.onFix(u.fix)
-                    remainingCountdown.onFix(u.fix)
+                    remainingRule.onFix(u.fix)
+                    // Do not wait for the next tick: its timer stops when the CPU sleeps.
+                    onTick()
                 }
                 Update.Tick -> onTick()
+                Update.HoldEnd -> (_state.value as? NavState.Active)?.let { relay(it.maneuver) }
                 is Update.Link -> onLink(u.connected)
             }
         }
@@ -312,10 +338,9 @@ class NavigationRelay @Inject constructor(
         val active = _state.value as? NavState.Active ?: return
         if (rerouting) return
         rerouting = true
-        routeNumber++
+        remainingRule.reroute()
         // The counted-down figure, not Maps' older one (CHK-20).
-        val remaining = if (countdownOn) remainingCountdown.shown(SystemClock.elapsedRealtime())
-            else active.maneuver.remainingMetres()
+        val remaining = remainingNow()
         val packet = ProtocolEngine.buildNavigationPacket(
             clusterCode = ProtocolEngine.Maneuver.FIRST_BLANK,
             distanceMetres = 0,
@@ -328,6 +353,9 @@ class NavigationRelay @Inject constructor(
         rideLog.reroute(what, delivered, packet)
         armWatchdog(arrived = false)
     }
+
+    private fun keepsTurn(prev: NavManeuver, fresh: NavManeuver) =
+        fresh.distanceMetres() == 0 && !fresh.isArrival() && prev.distanceMetres() > 0
 
     /** Maps says "Arrive at…" / "…destination…", or under ~50 m remain. */
     private fun NavManeuver.isArrival(): Boolean {
@@ -346,6 +374,7 @@ class NavigationRelay @Inject constructor(
         _clusterLinked.value = false
         rerouting = false
         lastPacket = null
+        remainingRule.newRoute()
         idleLink()
     }
 
@@ -363,7 +392,7 @@ class NavigationRelay @Inject constructor(
             clusterCode = ProtocolEngine.Maneuver.FIRST_BLANK,
             distanceMetres = 0,
             clock = clockNow(),
-            remainingMetres = 0,
+            remainingMetres = ProtocolEngine.REMAINING_UNKNOWN,
             // The field that actually ends navigation. Blanking the arrow and
             // zeroing the distances was not enough: navActive defaults to '1',
             // so the cluster was told "still navigating, with empty values" and
@@ -386,8 +415,14 @@ class NavigationRelay @Inject constructor(
     private suspend fun relay(maneuver: NavManeuver, fromGps: Boolean = false) {
         val distance = if (countdownOn) countdown.shown(SystemClock.elapsedRealtime())
             else maneuver.distanceMetres()
-        val remaining = if (countdownOn) remainingCountdown.shown(SystemClock.elapsedRealtime())
-            else maneuver.remainingMetres()
+        // Nothing real yet at route start: wait up to 3 s for the first figure, then send with FF x5.
+        val remaining = remainingRule.frame(SystemClock.elapsedRealtime()) ?: run {
+            if (holdJob?.isActive != true) holdJob = appScope.launch {
+                delay(RemainingRule.HOLD_MS + 50)
+                updates.trySend(Update.HoldEnd)
+            }
+            return
+        }
         // `maneuverId` already holds the cluster code. The official app maps the
         // Mappls maneuver id onto these values in ViewOnClickListenerC4857A0,
         // and the app's own Maneuver constants are that table's output side.
@@ -453,7 +488,12 @@ class NavigationRelay @Inject constructor(
     }
 
     /** Metres left of the whole journey, from Maps' subText ("38 km", "850 m"). */
-    private fun NavManeuver.remainingMetres(): Int = metres(remainingDistance)
+    private fun NavManeuver.remainingMetres(): Int =
+        com.eshwar.rideconnectx.data.nav.MapsNotificationParser.distanceToMetres(remainingDistance)
+            ?: ProtocolEngine.REMAINING_UNKNOWN
+
+    /** Counted-down remaining; unknown until Maps gave a value (the counter starts at 0). */
+    private fun remainingNow(): Int = remainingRule.shown(SystemClock.elapsedRealtime())
 
     private fun NavManeuver.distanceMetres(): Int = metres(distanceToTurn)
 
@@ -496,6 +536,7 @@ internal class GpsCountdown(
      * announce); a new key (announced reroute) always re-anchors.
      */
     private val neverUp: Boolean = false,
+    private val jumpM: Int = NEW_ROUTE_JUMP_M,
 ) {
 
     data class Fix(val lat: Double, val lon: Double, val accuracyM: Float, val speedMps: Float, val atMs: Long)
@@ -510,7 +551,7 @@ internal class GpsCountdown(
     fun onMaps(key: Any, metres: Int, nowMs: Long) {
         val counted = shown(nowMs)
         val tolerance = maxOf(MIN_TOLERANCE_M, metres * 15 / 100)
-        val tooHigh = metres - counted > (if (neverUp) NEW_ROUTE_JUMP_M else tolerance)
+        val tooHigh = metres - counted > (if (neverUp) jumpM else tolerance)
         if (key != this.key || metres < counted || tooHigh) {
             this.key = key
             anchor = metres
@@ -519,6 +560,11 @@ internal class GpsCountdown(
             shown = metres
         }
     }
+
+    val anchored: Boolean get() = key != null
+
+    /** New route: forget the figure (a new route never inherits the old one). */
+    fun clear() { key = null; anchor = 0; anchorAt = 0L; moved = 0.0; shown = 0 }
 
     fun onFix(f: Fix) {
         val prev = last
@@ -552,10 +598,44 @@ internal class GpsCountdown(
         const val MAX_ACCURACY_M = 30f
         /** Under ~4 km/h is standing still: count nothing. */
         const val MIN_SPEED_MPS = 1f
-        /** Predict from speed for at most this long after the last fix (GPS lost = stop). */
-        const val MAX_AHEAD_MS = 1_500L
+        /** Predict from speed for at most this long after the last fix (GPS lost = stop). With the screen off fixes arrive in bursts 2-8 s apart (ride log 4); shortcut: may over-count a hard stop by a few metres. */
+        const val MAX_AHEAD_MS = 4_000L
     }
 }
+
+/**
+ * The remaining distance of the whole journey, rule: Maps' figure on every post that has one
+ * (progressMax - progress, or the km in subText), else the last one counted down by GPS; never up
+ * on the same route; a reroute re-anchors even if higher; never carried into a new route; never made up.
+ * [frame] says what the navigation frame may carry now: a metre value, [ProtocolEngine.REMAINING_UNKNOWN]
+ * (FF x5, only after waiting [HOLD_MS] with nothing real), or null = hold the frame back.
+ */
+internal class RemainingRule(metresBetween: (GpsCountdown.Fix, GpsCountdown.Fix) -> Double) {
+    private val count = GpsCountdown(metresBetween, neverUp = true)
+    private var route = 0
+    private var waitingSince = -1L
+
+    fun newRoute() { count.clear(); waitingSince = -1L }
+    fun reroute() { route++ }
+    fun onFix(f: GpsCountdown.Fix) = count.onFix(f)
+    /** [metres] < 0 = this post had no figure: keep counting. */
+    fun onMaps(metres: Int, nowMs: Long) { if (metres >= 0) count.onMaps(route, metres, nowMs) }
+    fun shown(nowMs: Long): Int = if (count.anchored) count.shown(nowMs) else ProtocolEngine.REMAINING_UNKNOWN
+    fun frame(nowMs: Long): Int? {
+        if (count.anchored) { waitingSince = -1L; return count.shown(nowMs) }
+        if (waitingSince < 0) waitingSince = nowMs
+        return if (nowMs - waitingSince < HOLD_MS) null else ProtocolEngine.REMAINING_UNKNOWN
+    }
+
+    companion object { const val HOLD_MS = 3_000L }
+}
+
+/** The previous turn and its distance, with the ETA and remaining distance of the newer post. */
+internal fun carryTurn(prev: NavManeuver, fresh: NavManeuver): NavManeuver = prev.copy(
+    etaMinutes = fresh.etaMinutes, etaClock = fresh.etaClock ?: prev.etaClock,
+    remainingDistance = fresh.remainingDistance.ifBlank { prev.remainingDistance },
+    screenOn = fresh.screenOn, postedAt = fresh.postedAt,
+)
 
 /**
  * Official lane ids 74/58 differ per model. The Access / A-family keeps the code

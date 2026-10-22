@@ -40,8 +40,10 @@ Run from the repo root, then type the key password when asked:
 ```
 powershell -ExecutionPolicy Bypass -File tools\build-release.ps1
 ```
-Output: `app/build/outputs/apk/release/RideConnectX-v1.0.0.apk` and
-`RideConnectX-v1.0.0.apk.sha256`. The script prints the signer certificate at the end.
+Output: `app/build/outputs/apk/release/RideConnectX-v<version>.apk` and
+`RideConnectX-v<version>.apk.sha256` (the name follows `versionName`). For the tester
+build (`versionName` 1.0.0-tester, versionCode 3) that is `RideConnectX-v1.0.0-tester.apk`.
+The published 1.0.0 APK (versionCode 2) is not rebuilt by this. The script prints the signer certificate at the end.
 
 What the script does:
 - Runs `assembleRelease`, then `apksigner` from the newest Android build-tools.

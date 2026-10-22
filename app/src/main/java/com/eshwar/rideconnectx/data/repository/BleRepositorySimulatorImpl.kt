@@ -232,6 +232,13 @@ class BleRepositorySimulatorImpl @Inject constructor(
         linkJob = scope.launch {
             _connectionState.value = ConnectionState.Connecting(address, "Simulated Scooter")
             delay(1500)
+            // Same facts the real link records; the simulator never finds a bike service, so a
+            // motorcycle name shows the waiting state.
+            com.eshwar.rideconnectx.data.ble.LinkDiagnostics.reset()
+            com.eshwar.rideconnectx.domain.ProtocolEngine.profileFor(deviceName).let {
+                com.eshwar.rideconnectx.data.ble.LinkDiagnostics.setProfile(it.nameCode, it.family)
+            }
+            com.eshwar.rideconnectx.data.ble.LinkDiagnostics.update { it.copy(gattConnected = true, serviceFound = if (it.family == com.eshwar.rideconnectx.domain.ClusterFamily.MOTORCYCLE) false else true) }
             _connectionState.value = ConnectionState.Connected(address, "Simulated Scooter")
             rideLogLink(configureAndDescribe(deviceName))
             // Example readings so the dashboard has something to show.

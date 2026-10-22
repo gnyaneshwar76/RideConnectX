@@ -33,6 +33,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -43,6 +44,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
 import com.eshwar.rideconnectx.BuildConfig
 import com.eshwar.rideconnectx.R
@@ -101,6 +104,15 @@ fun AboutScreen(
                             subtitle = "Version ${BuildConfig.VERSION_NAME}",
                             onClick = { sheet = AboutSheet.WHATS_NEW },
                         )
+                        SettingsDivider()
+                        val ctx = androidx.compose.ui.platform.LocalContext.current
+                        val reportDesc = stringResource(R.string.about_report_desc)
+                        SettingsLinkRow(
+                            title = stringResource(R.string.about_report),
+                            modifier = Modifier.semantics { contentDescription = reportDesc },
+                            onClick = { com.eshwar.rideconnectx.core.util.openReportMail(ctx) },
+                        )
+                        ConnectionDetails()
                         SettingsDivider()
                         SettingsLinkRow(title = stringResource(R.string.common_privacy_policy), onClick = onPrivacy)
                         SettingsDivider()
@@ -165,6 +177,54 @@ private fun AppInformationCard() {
                 VersionChip(stringResource(R.string.about_build), BuildConfig.VERSION_CODE.toString())
             }
         }
+    }
+}
+
+/** Plain text lines from [com.eshwar.rideconnectx.data.ble.LinkDiagnostics]; no names, addresses or text. */
+@Composable
+private fun ConnectionDetails() {
+    val d by com.eshwar.rideconnectx.data.ble.LinkDiagnostics.state.collectAsState()
+    val now = remember { System.currentTimeMillis() }
+    val c = Rcx.colors
+    val unknown = "-"
+    fun hex(v: Int?) = v?.let { "0x%02X".format(it) } ?: unknown
+    val lines = if (d.connectedAtMs == 0L) {
+        listOf(stringResource(R.string.conn_none))
+    } else {
+        listOf(
+            stringResource(R.string.conn_vehicle, d.profileCode.ifBlank { d.family?.name ?: unknown }),
+            stringResource(
+                R.string.conn_gatt,
+                when (d.gattConnected) { true -> "connected"; false -> "disconnected"; null -> "connecting" },
+                d.lastGattStatus?.toString() ?: unknown,
+                d.lastDisconnectStatus?.toString() ?: unknown,
+            ),
+            stringResource(R.string.conn_mtu, d.mtu?.toString() ?: unknown),
+            stringResource(R.string.conn_services, d.services.joinToString(" ").ifEmpty { unknown }),
+            stringResource(
+                R.string.conn_service_fefb,
+                when (d.serviceFound) { true -> "found"; false -> "NOT found"; null -> "not checked yet" },
+            ),
+            stringResource(R.string.conn_cccd, d.cccdOk, d.cccdFailed, d.lastCccdFailStatus?.toString() ?: unknown),
+            stringResource(
+                R.string.conn_bond, d.bond,
+                when (d.createBondResult) { true -> "accepted"; false -> "refused"; null -> "not called" },
+            ),
+            stringResource(
+                R.string.conn_sent,
+                d.sent.entries.sortedBy { it.key }.joinToString(", ") {
+                    val label = when (it.key) { 0x33 -> "heartbeat"; 0x36 -> "profile"; else -> "type " + hex(it.key) }
+                    "$label x${it.value}"
+                }.ifEmpty { "nothing" },
+                when (d.plainSumSent) { true -> "plain sum"; false -> "complement"; null -> "no rule yet" },
+            ),
+            stringResource(R.string.conn_received, d.rxCount, hex(d.lastRxType)),
+            stringResource(R.string.conn_age, ((now - d.connectedAtMs) / 1000).coerceAtLeast(0).toInt()),
+        )
+    }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(stringResource(R.string.conn_title), style = RcxType.MonoTiny, color = c.muted)
+        lines.forEach { Text(it, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.muted) }
     }
 }
 

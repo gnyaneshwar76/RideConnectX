@@ -74,6 +74,9 @@ class BackgroundRunAccess(private val context: Context) {
                 // Some OEMs refuse the direct request outright.
             }
         }
+        android.widget.Toast.makeText(
+            context, com.eshwar.rideconnectx.R.string.bgrun_manual, android.widget.Toast.LENGTH_LONG,
+        ).show()
     }
 }
 

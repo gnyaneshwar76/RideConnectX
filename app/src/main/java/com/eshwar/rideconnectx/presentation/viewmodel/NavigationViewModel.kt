@@ -7,6 +7,7 @@ import com.eshwar.rideconnectx.domain.model.NavState
 import com.eshwar.rideconnectx.domain.repository.BleRepository
 import com.eshwar.rideconnectx.domain.repository.ConnectionState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -17,7 +18,18 @@ import javax.inject.Inject
 class NavigationViewModel @Inject constructor(
     private val relay: NavigationRelay,
     private val bleRepository: BleRepository,
+    private val bgPrompt: com.eshwar.rideconnectx.core.util.BackgroundRunPromptStore,
+    @com.eshwar.rideconnectx.core.di.ApplicationScope private val appScope: kotlinx.coroutines.CoroutineScope,
 ) : ViewModel() {
+
+    /** Null until the saved flag is read. */
+    val popupShown: StateFlow<Boolean?> =
+        bgPrompt.shown.map<Boolean, Boolean?> { it }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** On the app scope so the flag lands even if the rider leaves the page at once. */
+    fun markPopupShown() { appScope.launch { bgPrompt.markShown() } }
+
 
     val navState: StateFlow<NavState> =
         relay.state.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NavState.Inactive)

@@ -20,6 +20,7 @@ collects, where it goes, and what stays on your phone.
 - Notification content is read on-device and relayed to your scooter. It is
   **never** uploaded.
 - The Bluetooth link to the cluster is not encrypted: caller and sender names cross the air in plain text. Names are shown on the cluster and kept in the Notifications page on the phone. Message text is read only to count and alert; it is never stored or uploaded. A name with no Latin letters is shown as the fixed label "New message".
+- Report a problem opens your mail app with a pre-filled message; nothing is sent unless you press send.
 - While your scooter is connected, the app records your ride with GPS (precise
   location). The route of a finished ride is saved on your phone. If you do not
   keep the ride, it is deleted automatically 30 days after it ended. Only if you

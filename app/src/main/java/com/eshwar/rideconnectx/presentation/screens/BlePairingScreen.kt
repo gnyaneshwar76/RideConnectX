@@ -115,6 +115,8 @@ fun BlePairingScreen(
     }
 
     val connected = state.connectionState as? ConnectionState.Connected
+    // Motorcycle only: "Paired" waits until the bike's 0xFEFB service is found.
+    val link by com.eshwar.rideconnectx.data.ble.LinkDiagnostics.state.collectAsStateWithLifecycle()
 
     val scanning = state.connectionState is ConnectionState.Scanning
     val ring = if (connected != null) c.green else c.blue
@@ -159,6 +161,7 @@ fun BlePairingScreen(
             Text(
                 text = when {
                     !state.isBluetoothEnabled -> "Bluetooth is off"
+                    connected != null && link.awaitingBike -> "Connected, waiting for the bike"
                     connected != null -> "Paired Successfully!"
                     state.connectionState is ConnectionState.Connecting -> "Connecting…"
                     // Failures used to be invisible; the rider saw nothing

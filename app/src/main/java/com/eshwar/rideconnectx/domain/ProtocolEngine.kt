@@ -210,9 +210,9 @@ object ProtocolEngine {
         clock: String,
         /**
          * Metres remaining to the DESTINATION. Goes to bytes 18-22, the field
-         * printed beside the clock. 0 leaves it blank.
+         * printed beside the clock. [REMAINING_UNKNOWN] (any negative) sends FF x5; a real 0 sends 0000M.
          */
-        remainingMetres: Int = 0,
+        remainingMetres: Int = REMAINING_UNKNOWN,
         gpsStatus: Char = GPS_OK,
         navActive: Char = '1',
         /**
@@ -249,10 +249,10 @@ object ProtocolEngine {
 
         // Bytes 18-22: distance remaining to the destination, printed beside the
         // clock. Four digits then the unit character, same encoding as 4-8.
-        // Unknown (0 or less) is left blank (FF, as the official app blanks
-        // speed and clock) instead of a literal "0000M".
+        // Unknown (negative) is FF x5; a real 0 is "0000M" (a countdown reaching
+        // the destination must not draw error symbols).
         // Unverified on the cluster: see the Knowledge Base.
-        if (remainingMetres <= 0) {
+        if (remainingMetres < 0) {
             for (i in 18..22) frame[i] = 0xFF.toByte()
         } else {
             putAscii(frame, 18, formatDistance(remainingMetres))
@@ -269,6 +269,9 @@ object ProtocolEngine {
         frame[29] = END_BYTE
         return frame
     }
+
+    /** Remaining distance not known: bytes 18-22 become FF x5. */
+    const val REMAINING_UNKNOWN = -1
 
     const val GPS_OK = '1'
     const val GPS_AIRPLANE_MODE = '0'

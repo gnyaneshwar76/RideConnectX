@@ -131,3 +131,24 @@ class AlertLoopTest {
         assertFalse(b.messageFlag)
     }
 }
+
+class ReconnectScheduleTest {
+    @Test
+    fun `gap never passes the cap and a disconnected wanting app always tries again`() {
+        var d = ReconnectPolicy.MIN_MS
+        repeat(50) {
+            assertTrue(d in ReconnectPolicy.MIN_MS..30_000L)
+            assertEquals(WatchAction.CONNECT, ReconnectPolicy.decide(false, false, false, true, true, false))
+            d = ReconnectPolicy.nextDelay(d)
+        }
+        assertEquals(ReconnectPolicy.MAX_MS, d)
+    }
+
+    @Test
+    fun `a pending connect with no link is stuck, a live or idle one is not`() {
+        assertTrue(AttemptRules.isStuck(pending = true, linked = false))
+        assertFalse(AttemptRules.isStuck(pending = true, linked = true))
+        assertFalse(AttemptRules.isStuck(pending = false, linked = false))
+        assertTrue(AttemptRules.MOTORCYCLE_CONNECT_TIMEOUT_MS < 30_000L)
+    }
+}

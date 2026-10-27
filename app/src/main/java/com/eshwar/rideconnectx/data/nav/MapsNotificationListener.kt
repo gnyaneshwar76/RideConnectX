@@ -616,7 +616,7 @@ object MapsNotificationParser {
 
     /** "400 m", "1.2 km", "250 ft", "0.5 mi" — the distance to the next turn. */
     private val DISTANCE = Regex(
-        """(\d+(?:[.,]\d+)?)\s*(km|m|mi|ft|yd)\b""",
+        """(\d+(?:[.,]\d+)?)[\s\u00A0\u202F]*(km|m|mi|ft|yd)\b""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -726,7 +726,7 @@ object MapsNotificationParser {
     /** The three fields as the old layout would have carried them. */
     data class LiveFields(val title: String, val text: String, val subText: String)
 
-    private val DISTANCE_ONLY = Regex("""\s*\d+(?:[.,]\d+)?\s*(?:km|m|mi|ft|yd)\s*""", RegexOption.IGNORE_CASE)
+    private val DISTANCE_ONLY = Regex("""[\s\u00A0\u202F]*\d+(?:[.,]\d+)?[\s\u00A0\u202F]*(?:km|m|mi|ft|yd)[\s\u00A0\u202F]*""", RegexOption.IGNORE_CASE)
     private val DISTANCE_DOT_TEXT = Regex(
         """\s*(\d+(?:[.,]\d+)?[\s  ]*(?:km|m|mi|ft|yd))[\s  ]*[·•][\s  ]*(.+)""",
         RegexOption.IGNORE_CASE,
@@ -768,7 +768,7 @@ object MapsNotificationParser {
     }
 
     private const val SHORT_CRITICAL_INDEX = 2
-    private val BARE_METRES = Regex("""\s*\d+(?:[.,]\d+)?\s*m\s*""", RegexOption.IGNORE_CASE)
+    private val BARE_METRES = Regex("""[\s\u00A0\u202F]*\d+(?:[.,]\d+)?[\s\u00A0\u202F]*m[\s\u00A0\u202F]*""", RegexOption.IGNORE_CASE)
 
     /** Parses a live-update frame; an unknown turn distance stays unknown ("" in distanceToTurn). */
     fun parseLive(f: LiveFields, iconName: String = "", iconCode: Int? = null): NavManeuver? =
@@ -878,17 +878,20 @@ object MapsNotificationParser {
         return NavManeuver(
             maneuverId = maneuverId,
             instruction = instruction,
-            distanceToTurn = distance.trim(),
+            distanceToTurn = plainSpaces(distance).trim(),
             etaMinutes = parseEtaMinutes(journey),
             etaClock = parseEtaClock(journey),
             remainingDistance = DISTANCE.findAll(journey).map { it.value }.lastOrNull()
-                ?.trim().orEmpty(),
+                ?.let(::plainSpaces)?.trim().orEmpty(),
             phraseRecognised = matched != null,
             iconName = iconName,
             iconManeuverId = iconCode,
             codeSource = codeSource,
         )
     }
+
+    /** Maps puts U+00A0 / U+202F between number and unit; the screen's own regex expects a plain space. */
+    private fun plainSpaces(s: String) = s.replace('\u00A0', ' ').replace('\u202F', ' ')
 
     /**
      * The 30 Sep ride: working the clock out as now + minutes put the cluster a

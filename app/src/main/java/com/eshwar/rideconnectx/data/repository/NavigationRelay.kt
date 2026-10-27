@@ -141,6 +141,7 @@ class NavigationRelay @Inject constructor(
      */
     private val remainingRule = RemainingRule(::metresBetween)
     private var holdJob: Job? = null
+    private val turnHold = UnknownTurnHold()
     private var countdownOn = false
     private var locationCallback: LocationCallback? = null
     private var tickJob: Job? = null
@@ -251,13 +252,14 @@ class NavigationRelay @Inject constructor(
         // remaining are taken from it. Otherwise the cluster flipped between two states (ride log 4).
         val prev = (_state.value as? NavState.Active)?.maneuver
         // A new route never inherits the last route's remaining distance.
-        if (prev == null) remainingRule.newRoute()
+        if (prev == null) { remainingRule.newRoute(); turnHold.reset() }
         val carried = prev != null && keepsTurn(prev, fresh)
         val maneuver = if (carried) carryTurn(prev!!, fresh) else fresh
         _state.value = NavState.Active(maneuver)
         rerouting = false
         val now = SystemClock.elapsedRealtime()
-        if (!carried) countdown.onMaps(
+        // Unknown turn distance (N101): never anchor the counter at a made-up 0.
+        if (!carried && maneuver.distanceKnown()) countdown.onMaps(
             key = maneuver.instruction to maneuver.maneuverId,
             metres = maneuver.distanceMetres(),
             nowMs = now,
@@ -355,7 +357,9 @@ class NavigationRelay @Inject constructor(
     }
 
     private fun keepsTurn(prev: NavManeuver, fresh: NavManeuver) =
-        fresh.distanceMetres() == 0 && !fresh.isArrival() && prev.distanceMetres() > 0
+        keepsTurnRule(prev.distanceMetres(), fresh.distanceMetres(), fresh.distanceKnown(), fresh.isArrival())
+
+    private fun NavManeuver.distanceKnown() = distanceToTurn.isNotBlank()
 
     /** Maps says "Arrive at…" / "…destination…", or under ~50 m remain. */
     private fun NavManeuver.isArrival(): Boolean {
@@ -375,6 +379,7 @@ class NavigationRelay @Inject constructor(
         rerouting = false
         lastPacket = null
         remainingRule.newRoute()
+        turnHold.reset()
         idleLink()
     }
 
@@ -413,16 +418,19 @@ class NavigationRelay @Inject constructor(
      * range, which is what the spec calls degrading to phone-only.
      */
     private suspend fun relay(maneuver: NavManeuver, fromGps: Boolean = false) {
-        val distance = if (countdownOn) countdown.shown(SystemClock.elapsedRealtime())
+        val distance = if (countdownOn && maneuver.distanceKnown()) countdown.shown(SystemClock.elapsedRealtime())
             else maneuver.distanceMetres()
-        // Nothing real yet at route start: wait up to 3 s for the first figure, then send with FF x5.
-        val remaining = remainingRule.frame(SystemClock.elapsedRealtime()) ?: run {
+        fun holdFrame() {
             if (holdJob?.isActive != true) holdJob = appScope.launch {
                 delay(RemainingRule.HOLD_MS + 50)
                 updates.trySend(Update.HoldEnd)
             }
-            return
         }
+        // No turn distance and no earlier turn (N101): wait up to 3 s for a real one, never send 0 m.
+        val turnUnknown = !maneuver.distanceKnown()
+        if (!turnHold.mayShow(!turnUnknown, SystemClock.elapsedRealtime())) { holdFrame(); return }
+        // Nothing real yet at route start: wait up to 3 s for the first figure, then send with FF x5.
+        val remaining = remainingRule.frame(SystemClock.elapsedRealtime()) ?: run { holdFrame(); return }
         // `maneuverId` already holds the cluster code. The official app maps the
         // Mappls maneuver id onto these values in ViewOnClickListenerC4857A0,
         // and the app's own Maneuver constants are that table's output side.
@@ -445,6 +453,9 @@ class NavigationRelay @Inject constructor(
             // never sent, so that slot showed the turn distance instead - which
             // is what the rider spotted on 19 August.
             remainingMetres = remaining,
+            // Still unknown after the hold: blank field. shortcut: FF x5 cannot be written in this
+            // field without a ProtocolEngine change (rcx-protocol); spaces are unverified on the cluster.
+            distanceText = if (turnUnknown) "     " else null,
         )
 
         // Maps often posts the same frame twice in a second; the copy would only
@@ -628,6 +639,21 @@ internal class RemainingRule(metresBetween: (GpsCountdown.Fix, GpsCountdown.Fix)
     }
 
     companion object { const val HOLD_MS = 3_000L }
+}
+
+/** Keep the old turn when the new post has no (or a 0 m) distance, is not arrival, and the old one had metres. */
+internal fun keepsTurnRule(prevMetres: Int, freshMetres: Int, freshKnown: Boolean, freshArrival: Boolean) =
+    (!freshKnown || freshMetres == 0) && !freshArrival && prevMetres > 0
+
+/** A frame with an unknown turn distance may wait [HOLD_MS], then goes out with the field blank. */
+internal class UnknownTurnHold {
+    private var since = -1L
+    fun reset() { since = -1L }
+    fun mayShow(known: Boolean, nowMs: Long): Boolean {
+        if (known) { since = -1L; return true }
+        if (since < 0) since = nowMs
+        return nowMs - since >= RemainingRule.HOLD_MS
+    }
 }
 
 /** The previous turn and its distance, with the ETA and remaining distance of the newer post. */

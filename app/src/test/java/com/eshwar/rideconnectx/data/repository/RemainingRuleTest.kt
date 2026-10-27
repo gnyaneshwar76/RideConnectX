@@ -24,7 +24,7 @@ class RemainingRuleTest {
         fun post(title: String, progress: Int, max: Int, nowMs: Long) {
             val f = MapsNotificationParser.liveUpdateFields(title, "", "Arrive 5:17 pm", progress, max)
             if (MapsNotificationParser.isStarting(title)) return
-            val m: NavManeuver = (if (f != null) MapsNotificationParser.parse(f.title, f.text, f.subText) else null) ?: return
+            val m: NavManeuver = (if (f != null) MapsNotificationParser.parseLive(f) else null) ?: return
             posts++
             val own = MapsNotificationParser.distanceToMetres(m.remainingDistance) ?: -1
             if (own < 0) postsWithoutValue++

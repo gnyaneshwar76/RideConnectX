@@ -60,6 +60,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -264,6 +265,38 @@ fun NavigationScreen(
                     }
                 }
 
+                // Maps-off card: Maps was opened from here but never posted. Never during a route.
+                val mapsOff by vm.mapsOffState.collectAsStateWithLifecycle()
+                var now by remember { mutableStateOf(System.currentTimeMillis()) }
+                LaunchedEffect(Unit) {
+                    while (true) { kotlinx.coroutines.delay(30_000); now = System.currentTimeMillis() }
+                }
+                if (com.eshwar.rideconnectx.data.local.MapsOffRules.shouldShowMapsOffCard(
+                        mapsOff, notificationAccess.granted, navState is NavState.Active, now)
+                ) {
+                    Spacer(Modifier.height(12.dp))
+                    val mapsOffText = stringResource(R.string.mapsoff_text)
+                    val turnOnDesc = stringResource(R.string.mapsoff_turn_on_desc)
+                    val dismissDesc = stringResource(R.string.mapsoff_dismiss_desc)
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(c.amber.copy(alpha = 0.10f))
+                            .padding(start = 14.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(mapsOffText, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.text, modifier = Modifier.weight(1f))
+                        androidx.compose.material3.TextButton(
+                            onClick = { vm.mapsOffButtonTapped(); openMapsNotificationSettings(context) },
+                            modifier = Modifier.semantics { contentDescription = turnOnDesc },
+                        ) { Text(stringResource(R.string.mapsoff_turn_on)) }
+                        androidx.compose.material3.TextButton(
+                            onClick = vm::dismissMapsOff,
+                            modifier = Modifier.semantics { contentDescription = dismissDesc },
+                        ) { Text(stringResource(R.string.mapsoff_dismiss)) }
+                    }
+                }
+
                 Spacer(Modifier.height(16.dp))
 
                 PrimaryButton(
@@ -289,6 +322,19 @@ fun NavigationScreen(
                 Spacer(Modifier.height(16.dp))
             }
         }
+    }
+}
+
+/** Maps' notification settings; falls back to its app-info page, then does nothing. */
+private fun openMapsNotificationSettings(context: android.content.Context) {
+    val maps = "com.google.android.apps.maps"
+    val notif = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, maps)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val info = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$maps"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try { context.startActivity(notif) } catch (_: ActivityNotFoundException) {
+        try { context.startActivity(info) } catch (_: ActivityNotFoundException) { }
     }
 }
 
@@ -442,7 +488,8 @@ private fun ManeuverCard(maneuver: NavManeuver, modifier: Modifier = Modifier) {
             label = "maneuver",
         ) { maneuver ->
         Column {
-            Text(
+            // Unknown turn distance (blank after the hold) shows no "IN" line at all.
+            if (maneuver.distanceToTurn.isNotBlank()) Text(
                 "IN ${maneuver.distanceToTurn.uppercase()}",
                 style = RcxType.MonoTiny.copy(fontSize = 10.sp),
                 color = c.muted,

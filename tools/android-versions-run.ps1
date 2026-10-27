@@ -48,9 +48,12 @@ function Get-Nodes {
 }
 function Find-Node([string]$re, $nodes = $null) {   # whole-text regex on text or content-desc
   if ($null -eq $nodes) { $nodes = Get-Nodes }
-  $nodes | Where-Object { ($_.text -match "^($re)$") -or ($_.'content-desc' -match "^($re)$") } | Select-Object -First 1
+  # prefer a visible match; Compose often reports a button's text as [0,0][0,0] (Tap-Node then uses its parent)
+  $m = @($nodes | Where-Object { ($_.text -match "^($re)$") -or ($_.'content-desc' -match "^($re)$") })
+  ($m | Where-Object { $_.bounds -ne '[0,0][0,0]' } | Select-Object -First 1), $m[0] | Where-Object { $_ } | Select-Object -First 1
 }
 function Tap-Node($n) {
+  while ($n.bounds -eq '[0,0][0,0]' -and $n.ParentNode -and $n.ParentNode.bounds) { $n = $n.ParentNode }
   $b = [regex]::Match($n.bounds, '\[(\d+),(\d+)\]\[(\d+),(\d+)\]')
   $cx = [int](([int]$b.Groups[1].Value + [int]$b.Groups[3].Value) / 2); $cy = [int](([int]$b.Groups[2].Value + [int]$b.Groups[4].Value) / 2)
   Sh "input tap $cx $cy" | Out-Null
@@ -99,6 +102,10 @@ try {
   }
   Log "serial $script:serial, Android $((Sh 'getprop ro.build.version.release').Trim()) API $((Sh 'getprop ro.build.version.sdk').Trim())"
   $sdkInt = [int](Sh 'getprop ro.build.version.sdk').Trim()
+  # same rule as BleModule.isEmulator(): debug build on such a device uses BleRepositorySimulatorImpl
+  $hw = (Sh 'getprop ro.hardware').Trim(); $prod = (Sh 'getprop ro.product.name').Trim(); $fp = (Sh 'getprop ro.build.fingerprint').Trim()
+  $isSim = (@('ranchu', 'goldfish') -contains $hw) -or $prod.StartsWith('sdk') -or $fp.Contains('generic')
+  Add-Content $resf $(if ($isSim) { 'Build path: simulated scooter (BleRepositorySimulatorImpl)' } else { 'Build path: real BLE (BleRepositoryImpl); simulator-only NOT TESTABLE does not apply' })
   $abi = (Sh 'getprop ro.product.cpu.abi').Trim(); $page = ((Sh 'getconf PAGE_SIZE') -join '').Trim()
   $play = ((Sh 'pm list packages com.android.vending') -join '') -match 'com.android.vending'
   Add-Content $resf "Device: AVD=$Avd serial=$script:serial Android $((Sh 'getprop ro.build.version.release').Trim()) API $sdkInt abi=$abi page_size=$page"
@@ -136,11 +143,23 @@ try {
     for ($i = 0; $i -lt 25; $i++) {
       $nodes = Get-Nodes
       if (Find-Node 'Connect|Disconnect|Paired Successfully!' $nodes) { break }
-      $edit = $nodes | Where-Object { $_.class -eq 'android.widget.EditText' } | Select-Object -First 1
-      if ($edit -and -not $edit.text) { Tap-Node $edit; Sh 'input text Tester' | Out-Null; Sh 'input keyevent 111' | Out-Null; Start-Sleep 1 }   # guest name
+      # Create Profile: Rider's Name and Nickname are both required (Location is optional, 3rd field)
+      $edits = @($nodes | Where-Object { $_.class -eq 'android.widget.EditText' } | Select-Object -First 2)
+      $typed = $false
+      foreach ($edit in $edits) { if (-not $edit.text) { Tap-Node $edit; Sh 'input text Tester' | Out-Null; Sh 'input keyevent 111' | Out-Null; Start-Sleep 1; $typed = $true } }
+      # close the keyboard so the model picker and Continue are reachable; BACK only while the keyboard is shown (else it leaves the screen)
+      if ($typed -and ((Sh 'dumpsys input_method') -join '') -match 'mInputShown=true') { Sh 'input keyevent 4' | Out-Null; Start-Sleep 1 }
+      if (Tap-Text 'Choose your model') { Start-Sleep 2; Tap-Text 'Access 125' | Out-Null; Start-Sleep 2; Tap-Text 'Pearl Mat Aqua Silver|Solid Ice Green|Pearl Shiny Beige|Pearl Grace White' | Out-Null; Log 'setup: model Access 125 + a colour'; Start-Sleep 2; continue }
+      # Create Profile keeps Continue disabled until the terms box is ticked
+      $agree = $nodes | Where-Object { $_.checkable -eq 'true' -and $_.checked -eq 'false' } | Select-Object -First 1
+      # tap the box at the row's left edge: the middle of the row is the Terms link, which opens the Terms page
+      if ($agree) { $ab = [regex]::Match($agree.bounds, '\[(\d+),(\d+)\]\[(\d+),(\d+)\]'); Sh "input tap $([int]$ab.Groups[1].Value + 35) $([int](([int]$ab.Groups[2].Value + [int]$ab.Groups[4].Value) / 2))" | Out-Null; Log 'setup tap: terms checkbox'; Start-Sleep 1 }
+      $tapped = $false
       foreach ($re in 'Continue as Guest', 'Get Started', 'Let.s Go', 'Skip', 'Next', 'Continue', 'Allow', 'While using the app', 'Open Pair Your Vehicle', 'Pair', 'Scan|Retry') {
-        if (Tap-Text $re) { Log "setup tap: $re"; break }
+        if (Tap-Text $re) { Log "setup tap: $re"; $tapped = $true; break }
       }
+      # model picker and Continue sit below the fold on Create Profile
+      if (-not $tapped -or $edits.Count) { Sh 'input swipe 540 1600 540 500 300' | Out-Null }
       Start-Sleep 3
     }
     Shot '03-pairing-screen'
@@ -160,7 +179,9 @@ try {
       # shortcut: reconnect is judged by on-screen text; the exact dashboard wording ('Connected', strings.xml) is a guess
       $re = Wait-Text 'Connected|Paired Successfully!|Disconnect' 60
       Shot '05-after-force-stop-reopen'
-      Res 'force-stop, reopen: reconnects by itself' $(if ($re) { 'PASS' } else { 'FAIL' }) $(if (-not $re) { "no connected text within 60 s; screen: $(Screen-Texts)" } else { '' })
+      # debug emulator uses BleRepositorySimulatorImpl: no saved address, reconnectLastDevice() is a no-op (see done/20261026-ble-forcestop-reconnect.md)
+      if ($isSim) { Res 'force-stop, reopen: reconnects by itself' 'NOT TESTABLE' 'debug emulator uses BleRepositorySimulatorImpl: no saved address, reconnectLastDevice() is a no-op; real path needs phone + scooter (N28)' }
+      else { Res 'force-stop, reopen: reconnects by itself' $(if ($re) { 'PASS' } else { 'FAIL' }) "reconnect text not seen within 60 s; screen: $(Screen-Texts)" }
     }
   } catch { Res 'pairing flow' 'FAIL' "script error: $($_.Exception.Message)" }
   Sh 'logcat -c' | Out-Null
@@ -243,13 +264,13 @@ try {
       $svc = (Sh "dumpsys activity services $pkg") -join "`n"; Set-Content (Join-Path $out 'services-after-screen-off.txt') $svc
       $fgt = [regex]::Match($svc, 'foregroundServiceType=(0x[0-9a-fA-F]+|\d+)').Groups[1].Value
       $isFg = $svc -match 'isForeground=true'
-      Res "screen off $ScreenOffMinutes min: foreground service still running" $(if ($isFg) { 'PASS' } else { 'FAIL' }) "isForeground=$isFg, foregroundServiceType=$fgt (manifest: connectedDevice|location, expect 0x18 = 0x10 + 0x8)"
+      Res "screen off $ScreenOffMinutes min: foreground service still running" $(if ($isFg) { 'PASS' } elseif ($isSim) { 'NOT TESTABLE' } else { 'FAIL' }) "$(if ($isSim) { 'simulator never starts BleForegroundService; ' })isForeground=$isFg, foregroundServiceType=$fgt (manifest: connectedDevice|location, expect 0x18 = 0x10 + 0x8)"
       # packet stream: TX / SIM FRAME lines; gap = seconds between neighbours (logcat -v time starts 'MM-DD HH:MM:SS.mmm')
       $tx = @((Sh 'logcat -d -v time') | Select-String -Pattern 'SIM FRAME|TX model=' | ForEach-Object { [datetime]::ParseExact($_.Line.Substring(0, 18), 'MM-dd HH:mm:ss.fff', [Globalization.CultureInfo]::InvariantCulture) })
       $maxGap = 0; for ($i = 1; $i -lt $tx.Count; $i++) { $g = ($tx[$i] - $tx[$i - 1]).TotalSeconds; if ($g -gt $maxGap) { $maxGap = $g } }
       $span = 0; if ($tx.Count -gt 1) { $span = ($tx[-1] - $tx[0]).TotalSeconds }
       $okTx = ($tx.Count -gt 1) -and ($maxGap -le $GapThresholdSec) -and ($span -ge ($ScreenOffMinutes * 60 * 0.8))
-      Res 'screen off: packets kept being sent (TX / SIM FRAME lines)' $(if ($okTx) { 'PASS' } else { 'FAIL' }) "lines=$($tx.Count), longest gap=$([int]$maxGap) s (limit $GapThresholdSec s, my pick), first-to-last span=$([int]$span) s"
+      Res 'screen off: packets kept being sent (TX / SIM FRAME lines)' $(if ($okTx) { 'PASS' } elseif ($isSim) { 'NOT TESTABLE' } else { 'FAIL' }) "$(if ($isSim) { 'simulator is Idle after force-stop and sends no heartbeat; ' })lines=$($tx.Count), longest gap=$([int]$maxGap) s (limit $GapThresholdSec s, my pick), first-to-last span=$([int]$span) s"
       Check-Fake
       if ($script:fakeBroken) { Res 'screen off: live-update fakes reached the app' 'NOT TESTABLE' "fake failed: $script:fakeBroken" }
     } catch { Res 'screen off' 'FAIL' "script error: $($_.Exception.Message)" }

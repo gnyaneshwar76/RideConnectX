@@ -857,6 +857,7 @@ class BleForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        com.eshwar.rideconnectx.data.nav.ListenerWatchdog.check(this)
         if (intent?.action == "ACTION_DISCONNECT") {
             // Through the repository, so it also marks this as the rider's own
             // disconnect; otherwise the reconnect watcher undid it within 15 s.

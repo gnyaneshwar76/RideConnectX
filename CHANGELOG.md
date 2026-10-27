@@ -2,6 +2,21 @@
 
 All notable changes to RideConnectX. Format: Keep a Changelog. Versions follow the release tag.
 
+## [1.0.2-tester] - 2026-10-27 (testers only)
+
+### Added
+- Navigation page: "Turn on Google Maps notifications" card with a button, shown after a failed navigation start.
+- Notification-reader watchdog: if a phone stops the reader, the app asks Android to restart it.
+- Ride log notes when Google changes the Maps notification layout.
+
+### Fixed
+- No fake "0 m" at the start of a route on phones without Samsung's extra distance field.
+- Road alerts ("Accident-prone area ...") are no longer read as turns.
+- Maps can be found on Android 11+ (package visibility).
+
+### Known limits
+- Not yet proven on a phone: the watchdog on Xiaomi, and the blank turn-distance field on a real dashboard.
+
 ## [1.0.1-tester] - 2026-10-22 (testers only)
 
 ### Added

@@ -6,6 +6,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import com.eshwar.rideconnectx.data.repository.UnknownTurnHold
+import com.eshwar.rideconnectx.data.repository.keepsTurnRule
 import org.junit.Test
 
 /**
@@ -352,8 +354,7 @@ class MapsNotificationParserTest {
     private fun live(title: String, text: String = "", sub: String, progress: Int = 0, max: Int = 0, chips: List<String> = emptyList()) =
         MapsNotificationParser.liveUpdateFields(title, text, sub, progress, max, chips)
 
-    private fun parseLive(f: MapsNotificationParser.LiveFields) =
-        MapsNotificationParser.parse(f.title, f.text, f.subText)
+    private fun parseLive(f: MapsNotificationParser.LiveFields) = MapsNotificationParser.parseLive(f)
 
     @Test
     fun `live update with distance in the title is split and gets remaining km`() {
@@ -369,13 +370,14 @@ class MapsNotificationParserTest {
     }
 
     @Test
-    fun `live update title without distance takes it from the chip, else 0 m, and still gets remaining`() {
+    fun `live update title without distance takes it from the chip, else unknown, and still gets remaining`() {
         val a = live("Turn left", sub = "Arrive 5:17 pm", progress = 25000, max = 25846, chips = listOf("", "20 m"))!!
         assertEquals("20 m", a.title)
         assertEquals("Turn left", a.text)
         assertEquals("846 m", parseLive(a)!!.remainingDistance)
         val b = live("Head toward Rushi School Rd", sub = "Arrive 5:28 pm", max = 4200)!!
-        assertEquals("0 m", b.title)
+        assertEquals("", b.title)
+        assertEquals("", parseLive(b)!!.distanceToTurn)
         assertEquals("4.2 km", parseLive(b)!!.remainingDistance)
     }
 
@@ -424,5 +426,92 @@ class MapsNotificationParserTest {
         assertTrue(!isAnsweredCall(callType = 2, hasFullScreenIntent = true))
         assertTrue(!isAnsweredCall(callType = 1, hasFullScreenIntent = true))   // incoming (Pixel)
         assertTrue(!isAnsweredCall(callType = 0, hasFullScreenIntent = false))  // not CallStyle
+    }
+
+    // ---- N101-N103 (26 Oct 2026). NOT RUN when written: no gradle was allowed. Xiaomi values from the owner's capture. ----
+
+    @Test
+    fun `T1 xiaomi first frame has no distance - unknown, not 0 m`() {
+        val f = live("Head north", sub = "Arrive 12:34 pm", progress = 0, max = 12408, chips = listOf("", "", ""))!!
+        assertEquals("", f.title)
+        val m = parseLive(f)!!
+        assertEquals("", m.distanceToTurn)
+        assertEquals("Head north", m.instruction)
+        assertEquals("12.4 km", m.remainingDistance)
+        assertEquals("1234PM", m.etaClock)
+    }
+
+    @Test
+    fun `T2 empty shortCriticalText is not a distance`() {
+        assertEquals("", live("Head north", sub = "Arrive 12:34 pm", progress = 0, max = 12408, chips = listOf("", "", ""))!!.title)
+    }
+
+    @Test
+    fun `T3 shortCriticalText that could be minutes is not a distance`() {
+        assertEquals("", live("Turn left", sub = "Arrive 5:17 pm", max = 5000, chips = listOf("", "", "5 m"))!!.title)
+        assertEquals("", live("Turn left", sub = "Arrive 5:17 pm", max = 5000, chips = listOf("", "", "12 min"))!!.title)
+        assertEquals("300 m", live("Turn left", sub = "Arrive 5:17 pm", max = 5000, chips = listOf("", "300 m", ""))!!.title)
+        assertEquals("1.2 km", live("Turn left", sub = "Arrive 5:17 pm", max = 5000, chips = listOf("", "", "1.2 km"))!!.title)
+    }
+
+    @Test
+    fun `T4 title with distance on xiaomi gets remaining km`() {
+        val f = live("450 m · Turn right onto Vayushakti Nagar Rd", sub = "Arrive 12:34 pm", progress = 8000, max = 12408)!!
+        assertEquals("450 m", f.title)
+        assertEquals("4.4 km", parseLive(f)!!.remainingDistance)
+    }
+
+    @Test
+    fun `T5 unknown distance keeps the previous turn`() {
+        assertTrue(keepsTurnRule(prevMetres = 120, freshMetres = 0, freshKnown = false, freshArrival = false))
+        assertTrue(!keepsTurnRule(prevMetres = 0, freshMetres = 0, freshKnown = false, freshArrival = false))
+        assertTrue(!keepsTurnRule(prevMetres = 120, freshMetres = 0, freshKnown = false, freshArrival = true))
+        assertTrue(!keepsTurnRule(prevMetres = 120, freshMetres = 90, freshKnown = true, freshArrival = false))
+    }
+
+    @Test
+    fun `T6 first frame with no previous turn is held 3 s, then goes`() {
+        val h = UnknownTurnHold()
+        assertTrue(!h.mayShow(known = false, nowMs = 10_000))
+        assertTrue(!h.mayShow(known = false, nowMs = 12_900))
+        assertTrue(h.mayShow(known = false, nowMs = 13_050))
+        assertTrue(h.mayShow(known = true, nowMs = 13_100))
+        assertTrue(!h.mayShow(known = false, nowMs = 14_000))   // a later unknown waits again
+    }
+
+    @Test
+    fun `T7 alert titles with a distance are not turns`() {
+        for (t in listOf("Accident-prone area for the next 500 m", "Collision on NH44", "Low visibility reported ahead", "Lane closure")) {
+            assertNull(t, live(t, sub = ""))                          // no progress, no split
+            assertNull(t, MapsNotificationParser.parse(t, "", ""))    // and parse refuses it too
+        }
+    }
+
+    @Test
+    fun `T8 xiaomi arrival place name`() {
+        val f = live("SRI DEVI RESIDENCY", sub = "Arrive 5:27 pm", progress = 12350, max = 12408)!!
+        val m = parseLive(f)!!
+        assertEquals(ProtocolEngine.Maneuver.DESTINATION, m.maneuverId)
+        assertEquals("58 m", m.remainingDistance)
+    }
+
+    @Test
+    fun `T9 rerouting on xiaomi`() {
+        val r = live("Rerouting...", sub = "Arrive ", progress = 0, max = 12408)!!
+        assertTrue(MapsNotificationParser.isReroute("${r.title} ${r.text}"))
+    }
+
+    @Test
+    fun `frame watch logs a changed shape once and unreadable after 5 in a row`() {
+        val w = MapsFrameWatch()
+        assertTrue(w.shape("a:String"))
+        assertTrue(!w.shape("a:String"))
+        assertTrue(w.shape("a:String,b:Integer"))
+        assertNull(w.parsed(false)); assertNull(w.parsed(false)); assertNull(w.parsed(false)); assertNull(w.parsed(false))
+        assertEquals(5, w.parsed(false))
+        assertNull(w.parsed(false))                 // only once per run
+        assertNull(w.parsed(true))
+        repeat(4) { assertNull(w.parsed(false)) }
+        assertEquals(5, w.parsed(false))
     }
 }

@@ -14,7 +14,7 @@ class RemainingCountdownTest {
 
     private fun parseLive(title: String, progress: Int, max: Int): com.eshwar.rideconnectx.domain.model.NavManeuver {
         val f = MapsNotificationParser.liveUpdateFields(title, "", "Arrive 5:28 pm", progress, max)!!
-        return MapsNotificationParser.parse(f.title, f.text, f.subText)!!
+        return MapsNotificationParser.parseLive(f)!!
     }
 
     @Test
@@ -24,7 +24,7 @@ class RemainingCountdownTest {
         assertEquals("1.4 km", a.remainingDistance)
         assertEquals("1.4 km", b.remainingDistance)
         assertEquals("450 m", a.distanceToTurn)
-        assertEquals(0, MapsNotificationParser.distanceToMetres(b.distanceToTurn))
+        assertEquals(0, MapsNotificationParser.distanceToMetres(b.distanceToTurn) ?: 0)
     }
 
     @Test

@@ -293,16 +293,32 @@ class NavTestReceiver : BroadcastReceiver() {
     }
 
     /**
-     * StatusBarNotification has only a hidden public constructor
-     * (pkg, opPkg, id, tag, uid, pid, notification, user, overrideGroupKey, postTime).
-     * shortcut: reflection; if a new Android blocks it, the log says so (unproven on API 29-37).
+     * StatusBarNotification has only hidden constructors; picked by parameter TYPES.
+     * From memory of AOSP (unverified, not compiled):
+     *  - API 28-29: (pkg, opPkg, id, tag, uid, pid, score:int, Notification, UserHandle, postTime:long)
+     *  - API 30+:   (pkg, opPkg, id, tag, uid, pid, Notification, UserHandle, overrideGroupKey, postTime)
+     *               and/or the same without overrideGroupKey (9 params); both are tried.
+     * shortcut: reflection; if no signature matches, the log lists every declared constructor.
      */
     private fun newSbn(pkg: String, id: Int, n: android.app.Notification): android.service.notification.StatusBarNotification {
-        val c = android.service.notification.StatusBarNotification::class.java.declaredConstructors
-            .first { it.parameterTypes.size == 10 }
-        c.isAccessible = true
-        return c.newInstance(pkg, pkg, id, null, android.os.Process.myUid(), android.os.Process.myPid(), n,
-            android.os.Process.myUserHandle(), null, System.currentTimeMillis()) as android.service.notification.StatusBarNotification
+        val cls = android.service.notification.StatusBarNotification::class.java
+        val s = String::class.java; val i = Int::class.javaPrimitiveType!!; val l = Long::class.javaPrimitiveType!!
+        val nc = android.app.Notification::class.java; val uh = android.os.UserHandle::class.java
+        val uid = android.os.Process.myUid(); val pid = android.os.Process.myPid()
+        val user = android.os.Process.myUserHandle(); val now = System.currentTimeMillis()
+        // (parameter types, arguments) pairs, newest layout first
+        val variants = listOf(
+            arrayOf<Class<*>>(s, s, i, s, i, i, nc, uh, s, l) to arrayOf<Any?>(pkg, pkg, id, null, uid, pid, n, user, null, now),
+            arrayOf<Class<*>>(s, s, i, s, i, i, nc, uh, l) to arrayOf<Any?>(pkg, pkg, id, null, uid, pid, n, user, now),
+            arrayOf<Class<*>>(s, s, i, s, i, i, i, nc, uh, l) to arrayOf<Any?>(pkg, pkg, id, null, uid, pid, 0, n, user, now),
+        )
+        for ((types, args) in variants) {
+            val c = cls.declaredConstructors.firstOrNull { it.parameterTypes.contentEquals(types) } ?: continue
+            c.isAccessible = true
+            return c.newInstance(*args) as android.service.notification.StatusBarNotification
+        }
+        val all = cls.declaredConstructors.joinToString("; ") { c -> c.parameterTypes.joinToString(",", "(", ")") { it.simpleName } }
+        throw IllegalStateException("no matching constructor on API ${android.os.Build.VERSION.SDK_INT}, declared: $all")
     }
 
     /** One Notifications row, same shape as the live listener's recordHistory. */

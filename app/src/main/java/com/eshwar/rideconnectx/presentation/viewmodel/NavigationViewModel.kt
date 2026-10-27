@@ -19,8 +19,17 @@ class NavigationViewModel @Inject constructor(
     private val relay: NavigationRelay,
     private val bleRepository: BleRepository,
     private val bgPrompt: com.eshwar.rideconnectx.core.util.BackgroundRunPromptStore,
+    private val mapsOffStore: com.eshwar.rideconnectx.data.local.MapsOffCardStore,
+    private val mapsOffTracker: com.eshwar.rideconnectx.data.local.MapsOffTracker,
     @com.eshwar.rideconnectx.core.di.ApplicationScope private val appScope: kotlinx.coroutines.CoroutineScope,
 ) : ViewModel() {
+
+    val mapsOffState: StateFlow<com.eshwar.rideconnectx.data.local.MapsOffState> =
+        mapsOffStore.state.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000),
+            com.eshwar.rideconnectx.data.local.MapsOffState())
+
+    fun dismissMapsOff() { appScope.launch { mapsOffStore.dismiss(System.currentTimeMillis()) } }
+    fun mapsOffButtonTapped() { appScope.launch { mapsOffStore.buttonTapped(System.currentTimeMillis()) } }
 
     /** Null until the saved flag is read. */
     val popupShown: StateFlow<Boolean?> =
@@ -58,7 +67,7 @@ class NavigationViewModel @Inject constructor(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Marks the hand-off so the screen can show "waiting for Maps". */
-    fun onHandOffToMaps() = relay.awaitMaps()
+    fun onHandOffToMaps() { relay.awaitMaps(); mapsOffTracker.onMapsLaunched() }
 
     fun stopNavigation() = relay.stop()
 }

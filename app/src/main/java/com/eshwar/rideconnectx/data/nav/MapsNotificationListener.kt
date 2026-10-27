@@ -248,6 +248,12 @@ class MapsNotificationListener : NotificationListenerService() {
             return
         }
 
+        // Any Maps post proves Maps notifications are on (the "look off" card hides).
+        runCatching {
+            EntryPointAccessors.fromApplication(applicationContext, NavHistoryEntryPoint::class.java)
+                .mapsOffTracker().onMapsPost()
+        }
+
         val extras = sbn.notification.extras ?: return
 
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
@@ -308,12 +314,21 @@ class MapsNotificationListener : NotificationListenerService() {
                     "${extras.getInt(Notification.EXTRA_PROGRESS, 0)}/${extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)}")
         }
 
+        // Format-change watch: key names and value types only, never values (privacy).
+        val shape = extras.keySet().sorted().joinToString(",") { k ->
+            @Suppress("DEPRECATION")
+            val type = extras.get(k)?.javaClass?.simpleName
+            "$k:$type"
+        }
+        if (frameWatch.shape(shape)) diagLog("MAPS SHAPE NEW: $shape")
+
         // Android 16 "live update" Maps (ProgressStyle, Samsung S23 FE, 22 Oct 2026): see
         // MapsNotificationParser.liveUpdateFields. Old-layout frames come back unchanged.
+        val progressMax = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
         val live = MapsNotificationParser.liveUpdateFields(
             title, text, subText,
             progress = extras.getInt(Notification.EXTRA_PROGRESS, 0),
-            progressMax = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0),
+            progressMax = progressMax,
             chipTexts = listOf(
                 "android.ongoingActivityNoti.primaryInfo",
                 "android.ongoingActivityNoti.chipExpandedText",
@@ -324,8 +339,11 @@ class MapsNotificationListener : NotificationListenerService() {
         val navText = live?.text ?: text
         val navSubText = live?.subText ?: subText
 
-        if (navTitle.isBlank() && navText.isBlank()) return
         if (MapsNotificationParser.isStarting(title)) return
+        if (navTitle.isBlank() && navText.isBlank()) {
+            frameWatch.parsed(false)?.let { n -> diagLog("MAPS UNREADABLE: $n frames in a row; empty title and text") }
+            return
+        }
 
         // Maps is working out a new route (rider left the planned one). The
         // cluster has no reroute icon, so the relay shows a "working" frame
@@ -338,7 +356,11 @@ class MapsNotificationListener : NotificationListenerService() {
 
         val parsed = MapsNotificationParser.parse(
             navTitle, navText, navSubText, iconName, arrowMatch?.code,
+            turnUnknownOk = live != null && live.title.isBlank(),
         )
+        frameWatch.parsed(parsed != null)?.let { n ->
+            diagLog("MAPS UNREADABLE: $n frames in a row; titleBlank=${navTitle.isBlank()} textBlank=${navText.isBlank()} progressMax>0=${progressMax > 0}")
+        }
         if (parsed == null) {
             Log.v(TAG, "Maps notification ignored: title='$title' text='$text'")
             return
@@ -489,6 +511,25 @@ class MapsNotificationListener : NotificationListenerService() {
         }
     }
 
+    private val frameWatch = MapsFrameWatch()
+
+    private fun diagLog(line: String) {
+        runCatching {
+            EntryPointAccessors.fromApplication(applicationContext, ServiceEntryPoint::class.java)
+                .rideLog().diag(line)
+        }
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        ListenerWatchdog.onConnected(this)
+        // Needs a <queries> entry for Maps on Android 11+ (rcx-build); null = not visible or not installed.
+        val ver = MAPS_PACKAGES.joinToString { p ->
+            "$p=" + (runCatching { packageManager.getPackageInfo(p, 0).versionName }.getOrNull() ?: "unknown")
+        }
+        diagLog("MAPS VERSION: $ver")
+    }
+
     private fun logAlert(line: String) {
         runCatching {
             EntryPointAccessors.fromApplication(applicationContext, ServiceEntryPoint::class.java)
@@ -513,6 +554,7 @@ class MapsNotificationListener : NotificationListenerService() {
 
     override fun onListenerDisconnected() {
         // Nobody is reading Maps any more: stop GPS and blank the cluster.
+        ListenerWatchdog.onDisconnected(this)
         relay.stop()
         endAllCalls()
         super.onListenerDisconnected()
@@ -687,8 +729,10 @@ object MapsNotificationParser {
      * "Turn left" or "120 m · Turn left"; progressMax - progress is the metres left of the
      * route (25846 for a 26 km route). Returns the old layout (title = distance, text =
      * instruction, subText ends with the remaining km), or null when this is not a live-update frame.
-     * Seen in the owner's ride log 4 (Samsung, Android 16). shortcut: no distance anywhere
-     * (first frame, "Head north") gives "0 m"; the GPS countdown takes over.
+     * Seen in the owner's ride log 4 (Samsung, Android 16). No distance anywhere (first frame,
+     * "Head north", Xiaomi) gives title "" = unknown, never "0 m"; see [parseLive].
+     * A chip is trusted only as a pure distance; the third key (shortCriticalText) also not
+     * as a bare "m", which could be minutes. Guess: no capture shows Google doing that.
      */
     fun liveUpdateFields(
         title: String, text: String, subText: String,
@@ -698,7 +742,10 @@ object MapsNotificationParser {
         val split = DISTANCE_DOT_TEXT.matchEntire(title)
         if (progressMax <= 0 && split == null) return null
         val distance = split?.groupValues?.get(1)
-            ?: chipTexts.firstOrNull { distanceToMetres(it) != null } ?: "0 m"
+            ?: chipTexts.withIndex().firstOrNull { (i, c) ->
+                DISTANCE_ONLY.matches(c) && (i != SHORT_CRITICAL_INDEX || !BARE_METRES.matches(c))
+            }?.value?.trim()
+            ?: ""
         val left = (progressMax - progress).coerceAtLeast(0)
         val remaining = when {
             progressMax <= 0 || progress < 0 || progress > progressMax -> ""
@@ -711,6 +758,13 @@ object MapsNotificationParser {
             subText = listOf(subText.trim(), remaining).filter { it.isNotBlank() }.joinToString(" · "),
         )
     }
+
+    private const val SHORT_CRITICAL_INDEX = 2
+    private val BARE_METRES = Regex("""\s*\d+(?:[.,]\d+)?\s*m\s*""", RegexOption.IGNORE_CASE)
+
+    /** Parses a live-update frame; an unknown turn distance stays unknown ("" in distanceToTurn). */
+    fun parseLive(f: LiveFields, iconName: String = "", iconCode: Int? = null): NavManeuver? =
+        parse(f.title, f.text, f.subText, iconName, iconCode, turnUnknownOk = f.title.isBlank())
 
     /** "400 m" / "1,2 km" / "0.5 mi" / "50 ft" to metres; null when there is no distance. */
     internal fun distanceToMetres(text: String): Int? {
@@ -737,7 +791,12 @@ object MapsNotificationParser {
         subText: String = "",
         iconName: String = "",
         iconCode: Int? = null,
+        turnUnknownOk: Boolean = false,
     ): NavManeuver? {
+        // An alert ("Accident-prone area for the next 500 m") has words in the title and no text:
+        // not a turn. Real frames have the instruction in text, or a distance-only title.
+        if (text.isBlank() && !DISTANCE_ONLY.matches(title)) return null
+
         // The instruction lives in `text`. Keeping title in the haystack costs
         // nothing and covers a Maps version that swaps them back.
         val haystack = "$text $title"
@@ -772,7 +831,7 @@ object MapsNotificationParser {
                 }
                 null
             }
-            ?: return null
+            ?: (if (turnUnknownOk && text.isNotBlank()) "" else return null)
 
         val matched = MANEUVERS.firstOrNull { (pattern, _) -> pattern.containsMatchIn(haystack) }
             ?.second
@@ -855,4 +914,24 @@ internal fun isGroupSummary(flags: Int): Boolean = flags and Notification.FLAG_G
 @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
 interface NavHistoryEntryPoint {
     fun notificationRepository(): com.eshwar.rideconnectx.data.repository.NotificationRepository
+    fun mapsOffTracker(): com.eshwar.rideconnectx.data.local.MapsOffTracker
+}
+
+/**
+ * Spots a changed Maps notification layout (extras key/type set) and a run of frames that cannot
+ * be read. Pure, so it is tested without Android. Both answers are "log once".
+ */
+internal class MapsFrameWatch(private val unreadableAfter: Int = 5) {
+    private var lastShape: String? = null
+    private var misses = 0
+
+    /** True when [shape] differs from the previous one (the first frame counts). */
+    fun shape(shape: String): Boolean = (shape != lastShape).also { lastShape = shape }
+
+    /** Returns the run length once, when it reaches the limit; a good frame resets the run. */
+    fun parsed(ok: Boolean): Int? {
+        if (ok) { misses = 0; return null }
+        misses++
+        return misses.takeIf { it == unreadableAfter }
+    }
 }

@@ -52,6 +52,7 @@ Already have RideConnectX on the phone?
 
 1. In RideConnectX, make sure it is connected (step 3).
 2. Open Google Maps. Choose a place and tap **Start** for a driving route (or the bike mode if you have it).
+2a. If the Navigation page shows the card "Google Maps notifications look off", tap **Turn on** and enable the Maps notifications.
 3. Go back to RideConnectX once to check it says it sees the route.
 4. The dashboard should show the next turn arrow and the distance. It changes at each turn.
 5. At the end of the route the dashboard should show the arrival sign.
@@ -60,6 +61,7 @@ Already have RideConnectX on the phone?
 ## 5. Calls and messages on the dashboard
 
 1. Allow **notification reading** for RideConnectX. The app sends you to Android settings. Switch RideConnectX on. This lets it read the Google Maps notification and call and message alerts.
+   If Notification access is greyed out or blocked, you installed the app from a file. On Android 13 and newer, go to Settings > Apps > RideConnectX > App info, tap the three dots (top right), tap Allow restricted settings, then go back and turn Notification access on.
 2. Ask a friend to call you. The dashboard should show the caller's name or number.
 3. Ask a friend to send you a message. The dashboard should show the sender's name. The message text is never sent to the dashboard and is not stored.
 4. Open the **Notifications** page in the app. You should see the call or message names there (on your phone only).

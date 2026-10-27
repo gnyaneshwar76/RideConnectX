@@ -72,6 +72,11 @@
       subject to Play's restricted-permission review for no gain.
     -->
 
+    <!-- Android 11+ package visibility: lets the app see Google Maps for the version check and the Turn-on settings button. -->
+    <queries>
+        <package android:name="com.google.android.apps.maps" />
+    </queries>
+
     <!--
       Backup is off. With it on and no backup rules declared, Room (emergency
       contacts, notifications, rides), the DataStore preferences and the avatar

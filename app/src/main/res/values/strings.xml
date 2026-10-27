@@ -460,5 +460,10 @@
     <string name="bgrun_later">Not now</string>
     <string name="bgrun_reminder">For a better experience, enable background run</string>
     <string name="bgrun_enable">Enable</string>
+    <string name="mapsoff_text">Google Maps notifications look off. Turn them on so your dashboard gets directions.</string>
+    <string name="mapsoff_turn_on">Turn on</string>
+    <string name="mapsoff_dismiss">Dismiss</string>
+    <string name="mapsoff_turn_on_desc">Turn on Google Maps notifications</string>
+    <string name="mapsoff_dismiss_desc">Dismiss the Google Maps notifications message</string>
     <string name="bgrun_manual">Open Settings &gt; Apps &gt; RideConnectX &gt; Battery &gt; Unrestricted</string>
 </resources>

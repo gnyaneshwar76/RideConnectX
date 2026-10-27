@@ -9,7 +9,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -220,7 +221,14 @@ fun AnimatedSignInBg(modifier: Modifier = Modifier) {
             label = "particlePhase",
         )
 
-        Canvas(Modifier.fillMaxSize()) {
+        // Canvas is Spacer + drawBehind; drawWithCache keeps the fixed brush across frames.
+        Spacer(Modifier.fillMaxSize().drawWithCache {
+            val specular = Brush.horizontalGradient(
+                0f to Color.Transparent,
+                0.5f to Color(0xFF78AAFF).copy(alpha = 0.22f),
+                1f to Color.Transparent,
+            )
+            onDrawBehind {
             val sx = size.width / DW
             val sy = size.height / DH
 
@@ -277,14 +285,11 @@ fun AnimatedSignInBg(modifier: Modifier = Modifier) {
 
             // Top-edge specular — the iPhone screen-edge catch-light, inset 8%.
             drawRect(
-                brush = Brush.horizontalGradient(
-                    0f to Color.Transparent,
-                    0.5f to Color(0xFF78AAFF).copy(alpha = 0.22f),
-                    1f to Color.Transparent,
-                ),
+                brush = specular,
                 topLeft = Offset(size.width * 0.08f, 0f),
                 size = Size(size.width * 0.84f, 1.dp.toPx()),
             )
-        }
+            }
+        })
     }
 }

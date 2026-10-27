@@ -32,7 +32,8 @@ class RideLog @Inject constructor(
     settings: com.eshwar.rideconnectx.data.local.AppSettingsStore,
     @com.eshwar.rideconnectx.core.di.ApplicationScope scope: kotlinx.coroutines.CoroutineScope,
 ) {
-    private val stamp = SimpleDateFormat("HH:mm:ss", Locale.US)
+    /** SimpleDateFormat is not thread-safe; the listener and the relay log from different threads. */
+    private val stamp = ThreadLocal.withInitial { SimpleDateFormat("HH:mm:ss", Locale.US) }
 
     /**
      * Settings → Ride testing → Ride recorder. Off by default: the log says
@@ -87,6 +88,7 @@ class RideLog @Inject constructor(
     /** Wall-clock of the previous entry, for the stall column. */
     private var lastManeuverAt: Long = 0L
 
+    @Synchronized
     fun maneuver(
         instruction: String,
         code: Int,
@@ -113,7 +115,7 @@ class RideLog @Inject constructor(
         val gapSeconds = if (lastManeuverAt == 0L) 0 else ((now - lastManeuverAt) / 1000).toInt()
         lastManeuverAt = now
 
-        append("[${stamp.format(Date())}]  Maps said : \"$instruction\"  (${distanceMetres} m)")
+        append("[${stamp.get()!!.format(Date())}]  Maps said : \"$instruction\"  (${distanceMetres} m)")
 
         // What Maps itself meant, from the icon - the only field that carries a
         // direction on most frames. Printed beside our code so the two can be
@@ -187,24 +189,26 @@ class RideLog @Inject constructor(
      * record a ride.
      */
     fun diag(line: String) {
-        append("[${stamp.format(Date())}]  DIAG $line")
+        append("[${stamp.get()!!.format(Date())}]  DIAG $line")
     }
 
     /** A GPS countdown frame: one short line, it goes out several times a second. */
     fun gpsCount(sentMetres: Int, mapsMetres: Int, remainingMetres: Int, delivered: Boolean) {
-        append("[${stamp.format(Date())}]    GPS count : $sentMetres m  (Maps last said $mapsMetres m)  left $remainingMetres m${if (delivered) "" else "  NOT delivered"}")
+        append("[${stamp.get()!!.format(Date())}]    GPS count : $sentMetres m  (Maps last said $mapsMetres m)  left $remainingMetres m${if (delivered) "" else "  NOT delivered"}")
     }
 
     /** A call or message the app saw (who and which app; never the message text). */
+    @Synchronized
     fun alert(line: String) {
-        append("[${stamp.format(Date())}]  >>> $line")
+        append("[${stamp.get()!!.format(Date())}]  >>> $line")
         append("            Did the cluster show it? ______________________")
         append("")
     }
 
     /** Maps recalculated; the cluster was sent the blank "----" frame. */
+    @Synchronized
     fun reroute(what: String, delivered: Boolean, packet: ByteArray) {
-        append("[${stamp.format(Date())}]  *** REROUTE - Maps said: \"$what\"")
+        append("[${stamp.get()!!.format(Date())}]  *** REROUTE - Maps said: \"$what\"")
         append("            We sent     : blank arrow (46) + \"----\" distance")
         append("            Bytes sent  : ${packet.hex()}")
         append("            Reached the scooter : ${if (delivered) "yes" else "NO — not delivered"}")
@@ -215,6 +219,7 @@ class RideLog @Inject constructor(
     private fun ByteArray.hex(): String = joinToString(" ") { "%02X".format(it) }
 
     /** Marks the start of a route so separate rides can be told apart. */
+    @Synchronized
     fun sessionStart() {
         append("")
         append("==================================================")
@@ -223,11 +228,13 @@ class RideLog @Inject constructor(
         append("")
     }
 
+    @Synchronized
     fun sessionEnd() {
         append("----- route ended -----")
         append("")
     }
 
+    @Synchronized
     private fun append(line: String) {
         val f = file ?: return
         // shortcut: past the cap the whole file restarts, not a rolling window; 3 MB is several rides.

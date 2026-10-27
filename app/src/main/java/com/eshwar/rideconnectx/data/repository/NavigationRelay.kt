@@ -62,8 +62,8 @@ class NavigationRelay @Inject constructor(
         const val STALE_CLEAR_MS = 90_000L
         const val ARRIVAL_METRES = 50
         const val REPEAT_SKIP_MS = 1_000L
-        /** How often the GPS countdown refreshes the cluster (4 times a second). */
-        const val TICK_MS = 250L
+        /** How often the GPS countdown refreshes the cluster (twice a second). */
+        const val TICK_MS = 500L
         const val TURN_JUMP_M = 150
     }
 
@@ -226,6 +226,18 @@ class NavigationRelay @Inject constructor(
     /** The last navigation frame written, to skip Maps' back-to-back repeats. */
     private var lastPacket: ByteArray? = null
     private var lastPacketAt = 0L
+    /** What [lastPacket] was built from: a GPS tick with the same maneuver and metres skips the build. */
+    private var lastFrameManeuver: NavManeuver? = null
+    private var lastFrameDistance = -1
+    private var lastFrameRemaining = -1
+    /** The ETA clock, formatted once per maneuver rather than on every GPS tick. */
+    private var clockManeuver: NavManeuver? = null
+    private var clockText = ""
+
+    private fun etaClockFor(m: NavManeuver): String {
+        if (m !== clockManeuver) { clockManeuver = m; clockText = m.etaClock ?: etaClock(m.etaMinutes) }
+        return clockText
+    }
 
     private val _clusterLinked = MutableStateFlow(false)
 
@@ -431,6 +443,9 @@ class NavigationRelay @Inject constructor(
         if (!turnHold.mayShow(!turnUnknown, SystemClock.elapsedRealtime())) { holdFrame(); return }
         // Nothing real yet at route start: wait up to 3 s for the first figure, then send with FF x5.
         val remaining = remainingRule.frame(SystemClock.elapsedRealtime()) ?: run { holdFrame(); return }
+        // Counted metres unchanged since the last frame of this maneuver: same bytes, nothing to send.
+        if (fromGps && lastPacket != null && maneuver === lastFrameManeuver &&
+            distance == lastFrameDistance && remaining == lastFrameRemaining) return
         // `maneuverId` already holds the cluster code. The official app maps the
         // Mappls maneuver id onto these values in ViewOnClickListenerC4857A0,
         // and the app's own Maneuver constants are that table's output side.
@@ -448,7 +463,7 @@ class NavigationRelay @Inject constructor(
             //
             // The 0x33 heartbeat clock is a different field and is confirmed
             // correct on the dashboard - it keeps the real time.
-            clock = maneuver.etaClock ?: etaClock(maneuver.etaMinutes),
+            clock = etaClockFor(maneuver),
             // Beside the clock: how far is left of the whole journey. This was
             // never sent, so that slot showed the turn distance instead - which
             // is what the rider spotted on 19 August.
@@ -465,6 +480,9 @@ class NavigationRelay @Inject constructor(
         if (lastPacket?.contentEquals(packet) == true && (fromGps || now - lastPacketAt < REPEAT_SKIP_MS)) return
         lastPacket = packet
         lastPacketAt = now
+        lastFrameManeuver = maneuver
+        lastFrameDistance = distance
+        lastFrameRemaining = remaining
 
         val delivered = runCatching { bleRepository.sendPacket(packet).first() }
             .getOrDefault(false)

@@ -72,4 +72,20 @@ class MapsParserFixesTest {
         assertEquals("300\u00A0m", MapsNotificationParser.liveUpdateFields("Turn left", "", "Arrive 5:17 pm", 0, 5000, listOf("", "300\u00A0m", ""))!!.title)
         assertEquals("", MapsNotificationParser.liveUpdateFields("Turn left", "", "Arrive 5:17 pm", 0, 5000, listOf("", "", "5\u00A0m"))!!.title)
     }
+
+    // ---- the road name does not decide the arrow ----
+
+    @Test
+    fun `turn right onto Left Bank Rd is RIGHT`() {
+        assertEquals(ProtocolEngine.Maneuver.TURN_RIGHT, MapsNotificationParser.parse("200 m", "Turn right onto Left Bank Rd")!!.maneuverId)
+        assertEquals(ProtocolEngine.Maneuver.TURN_LEFT, MapsNotificationParser.parse("200 m", "Turn left toward Right Side Colony")!!.maneuverId)
+        assertEquals(ProtocolEngine.Maneuver.KEEP_LEFT, MapsNotificationParser.parse("200 m", "Keep left to stay on Right Bank Rd")!!.maneuverId)
+    }
+
+    @Test
+    fun `a road name alone after onto is not a turn, and the instruction keeps the road`() {
+        val m = MapsNotificationParser.parse("1.4 km", "Madina Cir onto Left Ring Rd")!!
+        assertEquals(ProtocolEngine.Maneuver.STRAIGHT, m.maneuverId)
+        assertEquals("Madina Cir onto Left Ring Rd", m.instruction)
+    }
 }

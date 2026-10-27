@@ -696,6 +696,12 @@ object MapsNotificationParser {
         return REROUTE_PHRASES.any { it in t }
     }
 
+    /** "Turn right onto Left Bank Rd" -> "Turn right": a road name must not decide the arrow. */
+    internal fun beforeRoadName(s: String): String =
+        ROAD_NAME_START.find(s)?.let { s.substring(0, it.range.first) } ?: s
+
+    private val ROAD_NAME_START = Regex("""\s(?:onto|toward|towards|via|to\s+stay)\s""", RegexOption.IGNORE_CASE)
+
     /** Starts with a maneuver verb ("Turn right", "Keep left"), so "Left Bank Rd" is not one. */
     internal fun isTurnInstruction(text: String): Boolean = TURN_INSTRUCTION.containsMatchIn(text)
 
@@ -807,7 +813,8 @@ object MapsNotificationParser {
 
         // The instruction lives in `text`. Keeping title in the haystack costs
         // nothing and covers a Maps version that swaps them back.
-        val haystack = "$text $title"
+        // Only the part before the road name: "Turn right onto Left Bank Rd" is RIGHT.
+        val haystack = "${beforeRoadName(text)} ${beforeRoadName(title)}"
 
         // Maps posts other notifications too (traffic, offers, "you're offline").
         // A navigation one always states a distance to the next turn.

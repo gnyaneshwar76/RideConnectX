@@ -111,6 +111,9 @@ class ArrowMatcher(private val context: Context) {
         }
     }
 
+    /** Builds the catalogue ahead of the first match (call off the main thread). */
+    fun warmUp() { catalogue() }
+
     /** Reduces a drawable to the 16x16 alpha grid. */
     fun fingerprint(drawable: Drawable): BooleanArray {
         val bmp = Bitmap.createBitmap(RENDER, RENDER, Bitmap.Config.ARGB_8888)

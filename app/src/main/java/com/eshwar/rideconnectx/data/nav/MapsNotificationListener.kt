@@ -115,6 +115,9 @@ class MapsNotificationListener : NotificationListenerService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /** Maps frames off the main thread, one at a time and in posting order (no frame overtakes another). */
+    private val mapsLane = Dispatchers.Default.limitedParallelism(1)
+
     /** Identifies the manoeuvre arrow. Built lazily on first navigation. */
     private val matcher by lazy { ArrowMatcher(applicationContext) }
 
@@ -161,7 +164,7 @@ class MapsNotificationListener : NotificationListenerService() {
      */
     private data class IconSig(val exact: String, val shape: String, val note: String)
 
-    private fun iconSignature(icon: android.graphics.drawable.Icon?): IconSig {
+    private fun iconSignature(icon: android.graphics.drawable.Icon?, loaded: android.graphics.drawable.Drawable?): IconSig {
         if (icon == null) return IconSig("", "", "none")
 
         val type = runCatching { icon.type }.getOrNull()
@@ -173,8 +176,7 @@ class MapsNotificationListener : NotificationListenerService() {
         }
 
         return runCatching {
-            val drawable = icon.loadDrawable(this)
-                ?: return@runCatching IconSig("", "", "unrenderable")
+            val drawable = loaded ?: return@runCatching IconSig("", "", "unrenderable")
             val n = 32
             val bmp = android.graphics.Bitmap.createBitmap(
                 n, n, android.graphics.Bitmap.Config.ARGB_8888,
@@ -260,6 +262,11 @@ class MapsNotificationListener : NotificationListenerService() {
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
         val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString().orEmpty()
 
+        // Icon rendering and matching run several times a second for a whole ride: not on the main thread.
+        scope.launch(mapsLane) { onMapsFrame(sbn, extras, title, text, subText) }
+    }
+
+    private fun onMapsFrame(sbn: StatusBarNotification, extras: android.os.Bundle, title: String, text: String, subText: String) {
         // One compact line rather than a dump of every field. The full dump was
         // used on 6 August to establish the layout — title is the distance, text
         // is the instruction, subText the journey — and it is recorded in the
@@ -284,17 +291,19 @@ class MapsNotificationListener : NotificationListenerService() {
         // their own screenshot of the shade, drawn on the right of the card.
         // The small icon is Maps' logo and is the same on every frame; reading
         // only that is what made two rides report a single generic name.
+        // Loaded once, used for both the fingerprint and the match.
+        val largeIcon = runCatching {
+            extras.getParcelable<android.graphics.drawable.Icon>(Notification.EXTRA_LARGE_ICON)
+        }.getOrNull()
+        val largeDrawable = runCatching { largeIcon?.loadDrawable(this) }.getOrNull()
         val arrow = runCatching {
-            iconSignature(extras.getParcelable(Notification.EXTRA_LARGE_ICON))
+            iconSignature(largeIcon, largeDrawable)
         }.getOrDefault(IconSig("", "", "failed"))
 
         // Identify the arrow against Maps' own catalogue. This is what supplies
         // the direction on the ~88% of frames whose text carries none.
         val arrowMatch = runCatching {
-            val icon = extras.getParcelable<android.graphics.drawable.Icon>(
-                Notification.EXTRA_LARGE_ICON,
-            )
-            icon?.loadDrawable(this)?.let { matcher.match(it) }
+            largeDrawable?.let { matcher.match(it) }
         }.getOrNull()
 
         // The log shows the identified name where it used to show a bare
@@ -528,6 +537,8 @@ class MapsNotificationListener : NotificationListenerService() {
             "$p=" + (runCatching { packageManager.getPackageInfo(p, 0).versionName }.getOrNull() ?: "unknown")
         }
         diagLog("MAPS VERSION: $ver")
+        // Build the arrow catalogue now, off the main thread, not on the first turn of a ride.
+        scope.launch(mapsLane) { matcher.warmUp() }
     }
 
     private fun logAlert(line: String) {
@@ -602,7 +613,8 @@ class MapsNotificationListener : NotificationListenerService() {
         }
         // Maps clearing its notification means the route ended or was cancelled.
         Log.d(TAG, "Maps navigation notification removed — stopping relay")
-        relay.stop()
+        // After any frame still in the lane, so a late frame cannot restart the relay; stop stays on main.
+        scope.launch(mapsLane) { kotlinx.coroutines.withContext(Dispatchers.Main) { relay.stop() } }
     }
 }
 

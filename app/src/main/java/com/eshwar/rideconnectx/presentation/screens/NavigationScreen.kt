@@ -616,7 +616,7 @@ private fun RelayStatus(
             modifier = Modifier.weight(1f),
         )
         val dotColor by animateColorAsState(dot, tween(500), label = "relayDot")
-        val ping by rememberBreath(1200, "relayPing")
+        val ping by rememberBreath(1200, "relayPing", active = linked)
         Box(contentAlignment = Alignment.Center) {
             if (linked) Box(
                 Modifier.size(16.dp)

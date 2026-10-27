@@ -71,10 +71,10 @@ fun VehicleGalleryScreen(onContinue: () -> Unit = {}) {
             }
 
             item { SectionLabel("SCOOTERS") }
-            items(VehicleCatalog.scooters) { VehicleCard(it) }
+            items(VehicleCatalog.scooters, key = { it.id }) { VehicleCard(it) }
 
             item { SectionLabel("MOTORCYCLES") }
-            items(VehicleCatalog.motorcycles) { VehicleCard(it) }
+            items(VehicleCatalog.motorcycles, key = { it.id }) { VehicleCard(it) }
 
             item {
                 com.eshwar.rideconnectx.presentation.components.PrimaryButton(

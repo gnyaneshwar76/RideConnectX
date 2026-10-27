@@ -123,7 +123,7 @@ fun PermissionDetailsScreen(onBack: () -> Unit) {
                 }
 
                 item { PermissionGroupHeader("Required") }
-                items(AppPermissions.essential.filter { it.required }) { p ->
+                items(AppPermissions.essential.filter { it.required }, key = { it.id }) { p ->
                     PermissionCard(
                         permission = p,
                         icon = p.icon(),
@@ -135,7 +135,8 @@ fun PermissionDetailsScreen(onBack: () -> Unit) {
 
                 item { PermissionGroupHeader("Recommended") }
                 items(
-                    AppPermissions.essential.filterNot { it.required } + AppPermissions.optional
+                    AppPermissions.essential.filterNot { it.required } + AppPermissions.optional,
+                    key = { it.id },
                 ) { p ->
                     PermissionCard(
                         permission = p,

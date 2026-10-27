@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -130,7 +131,7 @@ fun AnimatedSignInBg(modifier: Modifier = Modifier) {
 
         // ── 1. the three drifting orbs ──────────────────────────────────
         ORBS.forEachIndexed { index, orb ->
-            val dx by transition.animateAmbient(
+            val dx = transition.animateAmbient(
                 initialValue = 0f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
@@ -143,7 +144,7 @@ fun AnimatedSignInBg(modifier: Modifier = Modifier) {
                 ),
                 label = "orbX$index",
             )
-            val dy by transition.animateAmbient(
+            val dy = transition.animateAmbient(
                 initialValue = 0f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
@@ -163,12 +164,17 @@ fun AnimatedSignInBg(modifier: Modifier = Modifier) {
 
             val wDp = with(density) { (orb.rx * 2 * sx).toDp() }
             val hDp = with(density) { (orb.ry * 2 * sy).toDp() }
-            val xDp = with(density) { ((orb.cx - orb.rx + dx) * sx).toDp() }
-            val yDp = with(density) { ((orb.cy - orb.ry + dy) * sy).toDp() }
 
             Box(
                 Modifier
-                    .offset(x = xDp, y = yDp)
+                    // Read in the placement lambda: a drift tick re-places the orb, it does not
+                    // recompose the screen. Same Dp rounding as offset(x, y).
+                    .offset {
+                        IntOffset(
+                            ((orb.cx - orb.rx + dx.value) * sx).toDp().roundToPx(),
+                            ((orb.cy - orb.ry + dy.value) * sy).toDp().roundToPx(),
+                        )
+                    }
                     .size(width = wDp, height = hDp)
                     .blur(with(density) { (orb.blur * sx).toDp() })
                     .background(

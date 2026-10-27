@@ -66,9 +66,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -386,11 +385,11 @@ private fun RadarPulse(
     found: Int = 0,
 ) {
     val c = Rcx.colors
-    val transition = rememberAmbientTransition("radar")
+    val transition = if (active) rememberAmbientTransition("radar") else null
 
     Box(modifier, contentAlignment = Alignment.Center) {
         repeat(3) { i ->
-            val progress by transition.animateAmbient(
+            val progress = transition.animateAmbient(
                 initialValue = 0f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
@@ -403,8 +402,14 @@ private fun RadarPulse(
             Box(
                 Modifier
                     .size(size)
-                    .scale(if (active) 0.85f + progress * 0.35f else 1f)
-                    .alpha(if (active) (1f - progress) * 0.6f else 0.35f)
+                    // Read in the layer: a ring tick redraws, it does not recompose.
+                    .graphicsLayer {
+                        val s = if (active) 0.85f + progress.value * 0.35f else 1f
+                        scaleX = s
+                        scaleY = s
+                        alpha = if (active) (1f - progress.value) * 0.6f else 0.35f
+                        clip = true
+                    }
                     .clip(CircleShape)
                     .border(1.dp, ring.copy(alpha = 0.16f), CircleShape)
             )

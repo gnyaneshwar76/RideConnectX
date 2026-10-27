@@ -696,6 +696,14 @@ object MapsNotificationParser {
         return REROUTE_PHRASES.any { it in t }
     }
 
+    /** Starts with a maneuver verb ("Turn right", "Keep left"), so "Left Bank Rd" is not one. */
+    internal fun isTurnInstruction(text: String): Boolean = TURN_INSTRUCTION.containsMatchIn(text)
+
+    private val TURN_INSTRUCTION = Regex(
+        """^\s*(?:turn|keep|bear|slight|sharp|make\s+a|take|merge|u[- ]?turn|at\s+the\s+roundabout)\b""",
+        RegexOption.IGNORE_CASE,
+    )
+
     /** "Starting navigation..." (N99): no turn yet, so no frame; the first "Head ..." post starts the route. */
     fun isStarting(s: String): Boolean = s.trim().lowercase().startsWith("starting navigation")
 
@@ -831,7 +839,9 @@ object MapsNotificationParser {
                 }
                 null
             }
-            ?: (if (turnUnknownOk && text.isNotBlank()) "" else return null)
+            // Old layout with an EMPTY title and text "Turn right" (seen on Android 11/12): a turn
+            // whose distance is unknown; the relay holds such frames. Road names never qualify.
+            ?: (if ((turnUnknownOk || title.isBlank() && isTurnInstruction(text)) && text.isNotBlank()) "" else return null)
 
         val matched = MANEUVERS.firstOrNull { (pattern, _) -> pattern.containsMatchIn(haystack) }
             ?.second

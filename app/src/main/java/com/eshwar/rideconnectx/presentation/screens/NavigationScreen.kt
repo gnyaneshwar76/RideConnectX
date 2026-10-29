@@ -268,7 +268,11 @@ fun NavigationScreen(
                 // Maps-off card: Maps was opened from here but never posted. Never during a route.
                 val mapsOff by vm.mapsOffState.collectAsStateWithLifecycle()
                 var now by remember { mutableStateOf(System.currentTimeMillis()) }
-                LaunchedEffect(Unit) {
+                // Only while the app is on screen; catches up at once when it comes back.
+                val visible = com.eshwar.rideconnectx.presentation.theme.rememberIsVisible()
+                LaunchedEffect(visible) {
+                    if (!visible) return@LaunchedEffect
+                    now = System.currentTimeMillis()
                     while (true) { kotlinx.coroutines.delay(30_000); now = System.currentTimeMillis() }
                 }
                 if (com.eshwar.rideconnectx.data.local.MapsOffRules.shouldShowMapsOffCard(

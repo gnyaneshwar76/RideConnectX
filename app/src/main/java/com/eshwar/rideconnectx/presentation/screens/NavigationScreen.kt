@@ -240,7 +240,7 @@ fun NavigationScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Readout("ETA", maneuver?.etaMinutes?.let { "$it min" } ?: "—", false, Modifier.weight(1f))
+                    Readout("ETA", etaTileText(maneuver?.etaMinutes, maneuver?.etaClock), false, Modifier.weight(1f))
                     Divider()
                     Readout("Distance", maneuver?.remainingDistance?.ifBlank { null } ?: "—", false, Modifier.weight(1f))
                     Divider()
@@ -662,4 +662,16 @@ private fun metresOf(text: String): Int {
     val m = METRES.find(text) ?: return 0
     val v = m.groupValues[1].replace(',', '.').toFloatOrNull() ?: return 0
     return (if (m.groupValues[2].equals("km", true)) v * 1000 else v).toInt()
+}
+
+private val ETA_CLOCK_FIELD = Regex("""(\d{2})(\d{2})([AP]M)""")
+
+/**
+ * The ETA tile: minutes when Maps states them, else the arrival clock ("0848PM" -> "8:48 pm").
+ * Android 16/17 Maps only says "Arrive 8:48 pm", so without this the tile showed "—" all ride.
+ */
+internal fun etaTileText(etaMinutes: Int?, etaClock: String?): String {
+    if (etaMinutes != null) return "$etaMinutes min"
+    val m = etaClock?.let { ETA_CLOCK_FIELD.matchEntire(it) } ?: return "—"
+    return "${m.groupValues[1].toInt()}:${m.groupValues[2]} ${m.groupValues[3].lowercase()}"
 }

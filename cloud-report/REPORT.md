@@ -77,3 +77,21 @@ Changes: `NavigationScreen.kt` ETA tile now uses the new `etaTileText(etaMinutes
 Tests: new `EtaTileTextTest` (4), including the real Android 16/17 "Arrive" line read through the parser. 402 pass, 0 fail.
 Risks: the tile text is in English and lowercase ("8:48 pm"). It does not follow the phone's 24-hour setting.
 Not checked: on a phone.
+
+## C5 perf - `cloud/perf` (11d6999)
+Changes (smallest fixes):
+- `relayClusterAlert`: the trusted-dialer check (two system lookups, main thread) now runs once per call notification instead of twice. Carried over from the unmerged `cloud/perf-screen-off`.
+- `NavigationScreen` Maps-off card: the 30 s clock now runs only while the app is on screen, and updates at once on return. Also carried over.
+- `logAlert`: the ride-log file write for each call or message moved off the main thread, onto the serial Maps lane, so lines keep their order.
+
+Checked, no change needed:
+- Relay ticker: 500 ms and runs only while counting; unchanged ticks are skipped (C3, and the ETA key in C4b).
+- Maps listener: frames are already off main (C3).
+- BLE write loop: IO dispatcher. The reconnect watcher sleeps on a channel or a timeout, not polling. The heartbeat runs only while linked, and the protocol needs it.
+- `RideTracker` 1 s ticker: runs only while linked, and publishes only with collectors.
+- Composables: no `runBlocking` and no blocking Room/DataStore reads. Refresh actions call suspend `checkOnce()`. Statistics flows are `WhileSubscribed`. All `collectAsState` now have lifecycle (C2).
+- `SharingStarted.Eagerly` (theme, auth, odometer): small DataStore flows with no timers. Left as they are.
+
+Tests: 398 pass, 0 fail. These are timing changes, so there is no new unit test.
+Risks: alert lines now reach the ride log a moment later.
+Not checked: battery measurement on a phone with the screen off.

@@ -466,4 +466,12 @@
     <string name="mapsoff_turn_on_desc">Turn on Google Maps notifications</string>
     <string name="mapsoff_dismiss_desc">Dismiss the Google Maps notifications message</string>
     <string name="bgrun_manual">Open Settings &gt; Apps &gt; RideConnectX &gt; Battery &gt; Unrestricted</string>
+    <string name="restricted_title">Switch greyed out?</string>
+    <string name="restricted_intro">Android blocks Notification access for apps installed outside the Play Store until you allow it once:</string>
+    <string name="restricted_step_1">1. Open Settings &gt; Apps &gt; RideConnectX</string>
+    <string name="restricted_step_2">2. Tap the three dots at the top right</string>
+    <string name="restricted_step_3">3. Tap Allow restricted settings</string>
+    <string name="restricted_step_4">4. Come back and turn on Notification access</string>
+    <string name="restricted_open_app_info">Open app info</string>
+    <string name="restricted_close">Close</string>
 </resources>

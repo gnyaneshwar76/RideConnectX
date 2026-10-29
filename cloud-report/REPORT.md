@@ -111,3 +111,15 @@ Changes (tests only, no app code):
 Tests: 416 pass, 0 fail.
 Risks: none to app behaviour.
 Not checked: the km display style (only metres asserted, because kmStyle is shared global state).
+
+## C7 restricted-settings guide - `cloud/restricted-settings-guide` (ae5006c, from `cloud/eta-tile`)
+Changes:
+- `core/util/NotificationAccess.kt` `rememberNotificationAccess()`: when the rider comes back from the Notification access page and access is still off, a second dialog, "Switch greyed out?", appears. It shows only when `shouldShowRestrictedGuide(sdk, installer, granted)` says so: SDK >= 33, and installer not `com.android.vending` (unknown counts as sideloaded). It lists the steps: Settings > Apps > RideConnectX > three dots > Allow restricted settings > turn on Notification access. "Open app info" opens `ACTION_APPLICATION_DETAILS_SETTINGS` for the app.
+- 8 new strings in `values/strings.xml` (`restricted_*`).
+
+Tests: new `RestrictedGuideTest` (2). 404 pass, 0 fail.
+Risks:
+- The menu path and wording ("three dots", "Allow restricted settings") vary by phone maker and Android version.
+- On a phone where the rider simply backs out without trying, the guide also shows. It can be closed.
+
+Not checked: on a real Android 13+ phone with a sideloaded build; how the dialog looks.

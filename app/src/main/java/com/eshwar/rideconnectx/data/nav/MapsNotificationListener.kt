@@ -864,6 +864,11 @@ object MapsNotificationParser {
 
         val matched = MANEUVERS.firstOrNull { (pattern, _) -> pattern.containsMatchIn(haystack) }
             ?.second
+            // A bare left/right with no turn verb in front is a road name ("Neredmet - Left Rd"), not a turn.
+            ?.takeUnless {
+                (it == ProtocolEngine.Maneuver.TURN_LEFT || it == ProtocolEngine.Maneuver.TURN_RIGHT) &&
+                    !isTurnInstruction(text) && !isTurnInstruction(title)
+            }
 
         // The ARROW wins when it was identified, and the text is the fallback.
         //

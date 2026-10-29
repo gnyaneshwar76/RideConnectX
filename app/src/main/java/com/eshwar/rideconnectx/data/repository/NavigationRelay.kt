@@ -369,7 +369,10 @@ class NavigationRelay @Inject constructor(
     }
 
     private fun keepsTurn(prev: NavManeuver, fresh: NavManeuver) =
-        keepsTurnRule(prev.distanceMetres(), fresh.distanceMetres(), fresh.distanceKnown(), fresh.isArrival())
+        keepsTurnRule(
+            prev.distanceMetres(), fresh.distanceMetres(), fresh.distanceKnown(), fresh.isArrival(),
+            freshNewTurn = fresh.codeSource != NavManeuver.Source.FALLBACK && fresh.maneuverId != prev.maneuverId,
+        )
 
     private fun NavManeuver.distanceKnown() = distanceToTurn.isNotBlank()
 
@@ -659,9 +662,13 @@ internal class RemainingRule(metresBetween: (GpsCountdown.Fix, GpsCountdown.Fix)
     companion object { const val HOLD_MS = 3_000L }
 }
 
-/** Keep the old turn when the new post has no (or a 0 m) distance, is not arrival, and the old one had metres. */
-internal fun keepsTurnRule(prevMetres: Int, freshMetres: Int, freshKnown: Boolean, freshArrival: Boolean) =
-    (!freshKnown || freshMetres == 0) && !freshArrival && prevMetres > 0
+/**
+ * Keep the old turn when the new post has no (or a 0 m) distance, is not arrival, and the old one had metres.
+ * Never when the new post names a different turn ([freshNewTurn]): "Turn right" with no distance after
+ * "40 m Turn left" is the next maneuver, not a repeat of the last one.
+ */
+internal fun keepsTurnRule(prevMetres: Int, freshMetres: Int, freshKnown: Boolean, freshArrival: Boolean, freshNewTurn: Boolean = false) =
+    (!freshKnown || freshMetres == 0) && !freshArrival && prevMetres > 0 && !freshNewTurn
 
 /** A frame with an unknown turn distance may wait [HOLD_MS], then goes out with the field blank. */
 internal class UnknownTurnHold {

@@ -71,3 +71,9 @@ Risks:
 - Listener disconnect now stops the relay a moment later, because it is asynchronous.
 
 Not checked: on a phone or a ride; the ETA field on the cluster at a minute change.
+
+## C4c UI - `cloud/eta-tile` (4fd0490)
+Changes: `NavigationScreen.kt` ETA tile now uses the new `etaTileText(etaMinutes, etaClock)`. It shows "14 min" when Maps gives minutes. Otherwise it shows the arrival clock read from the cluster field ("0848PM" becomes "8:48 pm"). If neither is there, or the clock cannot be read, it shows "—".
+Tests: new `EtaTileTextTest` (4), including the real Android 16/17 "Arrive" line read through the parser. 402 pass, 0 fail.
+Risks: the tile text is in English and lowercase ("8:48 pm"). It does not follow the phone's 24-hour setting.
+Not checked: on a phone.

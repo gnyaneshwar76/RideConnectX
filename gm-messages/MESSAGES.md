@@ -70,3 +70,6 @@ Every branch passed `testDebugUnitTest` with 0 failures before its push.
 - Nothing has been tested on a phone.
 
 This branch is temporary: delete it once read.
+
+## Merge check (all round 2 branches together)
+On a local scratch branch (not pushed), I merged `cloud/nav-fixes-2`, `cloud/tests`, `cloud/perf`, `cloud/restricted-settings-guide` and `cloud/docs-1-0-4` into Ride_Connect_X 893915d, in that order. All five merged with no conflicts, and `testDebugUnitTest` passed 430 of 430 tests with 0 failures. The `MapsNotificationListener.kt` overlap I flagged does not conflict.

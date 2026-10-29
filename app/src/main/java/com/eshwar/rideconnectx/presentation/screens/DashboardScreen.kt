@@ -635,7 +635,7 @@ private fun ServiceReminderCard(status: ServiceStatus, onClick: () -> Unit) {
     }
     val needsAttention = status.isOverdue || status.isDueSoon
     // Overdue breathes its border so it is noticed without shouting.
-    val breath = rememberBreath(2400, "serviceAttention")
+    val breath = rememberBreath(2400, "serviceAttention", active = status.isOverdue)
 
     Row(
         Modifier
@@ -725,7 +725,7 @@ private fun greeting(): String =
 private fun ConnectionPill(connected: Boolean, onClick: () -> Unit) {
     val c = Rcx.colors
     val tint by animateColorAsState(if (connected) c.green else c.muted, tween(500), label = "pillTint")
-    val ping by rememberBreath(1600, "pillPing")
+    val ping by rememberBreath(1600, "pillPing", active = connected)
     // The outer box gives a 48dp touch target; the pill keeps its look.
     Box(
         Modifier
@@ -829,7 +829,7 @@ private fun FuelGauge(segments: Int?, modifier: Modifier = Modifier) {
     val total = ClusterFuelSegments
     val filled = segments?.coerceIn(0, total)
     val low = filled != null && filled <= 1
-    val lowPulse = rememberBreath(1100, "fuelLow")
+    val lowPulse = rememberBreath(1100, "fuelLow", active = low)
 
     RcxSurface(modifier) {
     Column(Modifier.padding(14.dp)) {

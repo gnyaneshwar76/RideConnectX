@@ -90,7 +90,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -593,8 +592,9 @@ private fun RcxField(
 @Composable
 private fun LocateButton(busy: Boolean, hint: Boolean, onClick: () -> Unit) {
     val c = Rcx.colors
-    val transition = rememberAmbientTransition("locate")
-    val pulse by transition.animateAmbient(
+    // Only ticks while the hint pulse is on screen; read in graphicsLayer so a tick only redraws.
+    val transition = if (hint && !busy) rememberAmbientTransition("locate") else null
+    val pulse = transition.animateAmbient(
         initialValue = 0.45f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
@@ -618,7 +618,7 @@ private fun LocateButton(busy: Boolean, hint: Boolean, onClick: () -> Unit) {
                 contentDescription = "Detect my city",
                 modifier = Modifier
                     .size(19.dp)
-                    .alpha(if (hint) pulse else 1f),
+                    .then(if (hint) Modifier.graphicsLayer { alpha = pulse.value; clip = true } else Modifier),
                 tint = c.blue,
             )
         }

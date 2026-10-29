@@ -9,7 +9,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -130,7 +132,7 @@ fun AnimatedSignInBg(modifier: Modifier = Modifier) {
 
         // ── 1. the three drifting orbs ──────────────────────────────────
         ORBS.forEachIndexed { index, orb ->
-            val dx by transition.animateAmbient(
+            val dx = transition.animateAmbient(
                 initialValue = 0f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
@@ -143,7 +145,7 @@ fun AnimatedSignInBg(modifier: Modifier = Modifier) {
                 ),
                 label = "orbX$index",
             )
-            val dy by transition.animateAmbient(
+            val dy = transition.animateAmbient(
                 initialValue = 0f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
@@ -163,12 +165,17 @@ fun AnimatedSignInBg(modifier: Modifier = Modifier) {
 
             val wDp = with(density) { (orb.rx * 2 * sx).toDp() }
             val hDp = with(density) { (orb.ry * 2 * sy).toDp() }
-            val xDp = with(density) { ((orb.cx - orb.rx + dx) * sx).toDp() }
-            val yDp = with(density) { ((orb.cy - orb.ry + dy) * sy).toDp() }
 
             Box(
                 Modifier
-                    .offset(x = xDp, y = yDp)
+                    // Read in the placement lambda: a drift tick re-places the orb, it does not
+                    // recompose the screen. Same Dp rounding as offset(x, y).
+                    .offset {
+                        IntOffset(
+                            ((orb.cx - orb.rx + dx.value) * sx).toDp().roundToPx(),
+                            ((orb.cy - orb.ry + dy.value) * sy).toDp().roundToPx(),
+                        )
+                    }
                     .size(width = wDp, height = hDp)
                     .blur(with(density) { (orb.blur * sx).toDp() })
                     .background(
@@ -214,7 +221,14 @@ fun AnimatedSignInBg(modifier: Modifier = Modifier) {
             label = "particlePhase",
         )
 
-        Canvas(Modifier.fillMaxSize()) {
+        // Canvas is Spacer + drawBehind; drawWithCache keeps the fixed brush across frames.
+        Spacer(Modifier.fillMaxSize().drawWithCache {
+            val specular = Brush.horizontalGradient(
+                0f to Color.Transparent,
+                0.5f to Color(0xFF78AAFF).copy(alpha = 0.22f),
+                1f to Color.Transparent,
+            )
+            onDrawBehind {
             val sx = size.width / DW
             val sy = size.height / DH
 
@@ -271,14 +285,11 @@ fun AnimatedSignInBg(modifier: Modifier = Modifier) {
 
             // Top-edge specular — the iPhone screen-edge catch-light, inset 8%.
             drawRect(
-                brush = Brush.horizontalGradient(
-                    0f to Color.Transparent,
-                    0.5f to Color(0xFF78AAFF).copy(alpha = 0.22f),
-                    1f to Color.Transparent,
-                ),
+                brush = specular,
                 topLeft = Offset(size.width * 0.08f, 0f),
                 size = Size(size.width * 0.84f, 1.dp.toPx()),
             )
-        }
+            }
+        })
     }
 }

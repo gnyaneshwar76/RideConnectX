@@ -147,16 +147,17 @@ private const val AMBIENT_FRAME_MS = 33L
  * Battery: these move too slowly for the eye to tell 30 from 120 frames a
  * second, so they tick ~30 times a second instead of every display refresh.
  * Taps, scrolls and screen changes still run at the display's full rate.
- * Holds at the midpoint when [LocalAmbientMotion] is off.
+ * Holds at the midpoint when [LocalAmbientMotion] is off. Pass [active] = false
+ * while nothing reads the value, so the loop does not run for nothing.
  */
 @Composable
-fun rememberBreath(periodMs: Int = 3200, @Suppress("UNUSED_PARAMETER") label: String = "breath"): State<Float> {
+fun rememberBreath(periodMs: Int = 3200, @Suppress("UNUSED_PARAMETER") label: String = "breath", active: Boolean = true): State<Float> {
     val value = remember { mutableFloatStateOf(0.5f) }
     val ambient = LocalAmbientMotion.current
     // The loop below runs on a timer, not the frame clock, so it must be stopped
     // by hand when the app is not on screen (CHK-21).
     val visible = rememberIsVisible()
-    val on = ambient && visible
+    val on = ambient && visible && active
     LaunchedEffect(on, periodMs) {
         if (!ambient) { value.floatValue = 0.5f; return@LaunchedEffect }
         if (!on) return@LaunchedEffect

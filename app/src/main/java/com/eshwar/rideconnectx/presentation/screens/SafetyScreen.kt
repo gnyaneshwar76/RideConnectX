@@ -94,7 +94,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -528,10 +528,11 @@ private fun EmergencyCard(
     // Held, not tapped: a ring fills round the button and SOS opens when it closes.
     val hold = remember { androidx.compose.animation.core.Animatable(0f) }
     val holdScope = androidx.compose.runtime.rememberCoroutineScope()
-    val transition = rememberAmbientTransition("sosPulse")
-    val pulse by transition.animateAmbient(
+    // Only ticks while SOS is armed; read in graphicsLayer so a tick only redraws.
+    val transition = if (enabled) rememberAmbientTransition("sosPulse") else null
+    val pulse = transition.animateAmbient(
         initialValue = 1f,
-        targetValue = if (enabled) 1.045f else 1f,
+        targetValue = 1.045f,
         animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Reverse),
         label = "sosScale",
     )
@@ -551,7 +552,7 @@ private fun EmergencyCard(
         Box(
             Modifier
                 .size(148.dp)
-                .scale(pulse)
+                .graphicsLayer { scaleX = pulse.value; scaleY = pulse.value }
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(

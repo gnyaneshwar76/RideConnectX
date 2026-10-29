@@ -82,7 +82,7 @@ fun LegalScreen(
                     item { DocumentHeading("Terms & Conditions") }
                 }
 
-                itemsIndexed(sections) { index, section ->
+                itemsIndexed(sections, key = { index, _ -> "section$index" }) { index, section ->
                     // On the combined page the Privacy Policy needs its own
                     // heading where the Terms end.
                     if (doc == LegalDoc.BOTH && index == termsCount) {

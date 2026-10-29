@@ -104,7 +104,9 @@ fun StatisticsScreen(
     val totals by vm.totals.collectAsStateWithLifecycle()
     val rides by vm.rides.collectAsStateWithLifecycle()
     val buckets by vm.buckets.collectAsStateWithLifecycle()
-    val live by vm.live.collectAsStateWithLifecycle()
+    // Ticks every second: read only inside the item, so the list itself is not rebuilt each tick.
+    val live = vm.live.collectAsStateWithLifecycle()
+    val hasLive by remember { androidx.compose.runtime.derivedStateOf { live.value != null } }
     val locationOff by vm.locationOff.collectAsStateWithLifecycle()
 
     // This screen's background is a dark photograph in *both* app themes, so
@@ -153,7 +155,7 @@ fun StatisticsScreen(
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                if (live != null || locationOff) item { LiveCard(live, locationOff) }
+                if (hasLive || locationOff) item { LiveCard(live.value, locationOff) }
                 item { Box(Modifier.enterRise(0)) { PeriodTabs(period, vm::setPeriod) } }
 
                 item {

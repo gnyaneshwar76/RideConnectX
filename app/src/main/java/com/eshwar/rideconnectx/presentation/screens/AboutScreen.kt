@@ -33,7 +33,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -183,7 +183,7 @@ private fun AppInformationCard() {
 /** Plain text lines from [com.eshwar.rideconnectx.data.ble.LinkDiagnostics]; no names, addresses or text. */
 @Composable
 private fun ConnectionDetails() {
-    val d by com.eshwar.rideconnectx.data.ble.LinkDiagnostics.state.collectAsState()
+    val d by com.eshwar.rideconnectx.data.ble.LinkDiagnostics.state.collectAsStateWithLifecycle()
     val now = remember { System.currentTimeMillis() }
     val c = Rcx.colors
     val unknown = "-"

@@ -123,3 +123,33 @@ Risks:
 - On a phone where the rider simply backs out without trying, the guide also shows. It can be closed.
 
 Not checked: on a real Android 13+ phone with a sideloaded build; how the dialog looks.
+
+## C8 docs - `cloud/docs-1-0-4` (ac505d9)
+Changes:
+- `CHANGELOG.md`: a draft `[1.0.4-tester] - unreleased` entry with Added, Fixed, Improved and Known limits, covering C4b, C4c, C5, C6 and C7.
+- `docs/TESTER-GUIDE.md`: two new sections before "How to report a problem":
+  - "If Android blocks Notification access": the restricted settings steps.
+  - "Play Protect warning when installing": More details > Install anyway, and do not switch Play Protect off.
+
+Tests: 398 pass, 0 fail (docs only).
+Risks: the changelog describes branches that are not merged yet. Drop any line whose branch is left out.
+Not checked: the guide header still says version 1.0.0-tester, which I left as it was. Older changelog entries already name phone makers; I left them unchanged and added none.
+
+## Round 2 summary
+| Job | Branch | Commit | Tests |
+|---|---|---|---|
+| C4b nav | cloud/nav-fixes-2 | 0846446 | 406 pass |
+| C4c ETA tile | cloud/eta-tile | 5ef98f7 report / branch tip in C4c | 402 pass |
+| C5 perf | cloud/perf | see C5 | 398 pass |
+| C6 tests | cloud/tests | see C6 | 416 pass |
+| C7 restricted guide | cloud/restricted-settings-guide (from eta-tile) | see C7 | 404 pass |
+| C8 docs | cloud/docs-1-0-4 | ac505d9 | 398 pass |
+
+- Every branch passed `./gradlew testDebugUnitTest` with 0 failures before its push.
+- Locked turn codes and battery/signal encodings were not touched. No secrets were committed.
+- Merge order: `cloud/nav-fixes-2`, `cloud/tests`, `cloud/perf`, then `cloud/restricted-settings-guide` (it contains `cloud/eta-tile`), then `cloud/docs-1-0-4`.
+- `cloud/perf` and `cloud/nav-fixes-2` both edit `MapsNotificationListener.kt`, in different functions. A merge should be clean, but check it.
+- Nothing has been tried on a phone. Watch on the next ride:
+  - The blank distance after a distance-less "Turn left".
+  - The ETA tile and the cluster ETA when Maps gives no minutes.
+  - The restricted settings dialog on an Android 13+ phone with a sideloaded build.

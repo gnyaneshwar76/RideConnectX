@@ -139,10 +139,10 @@ Not checked: the guide header still says version 1.0.0-tester, which I left as i
 | Job | Branch | Commit | Tests |
 |---|---|---|---|
 | C4b nav | cloud/nav-fixes-2 | 0846446 | 406 pass |
-| C4c ETA tile | cloud/eta-tile | 5ef98f7 report / branch tip in C4c | 402 pass |
-| C5 perf | cloud/perf | see C5 | 398 pass |
-| C6 tests | cloud/tests | see C6 | 416 pass |
-| C7 restricted guide | cloud/restricted-settings-guide (from eta-tile) | see C7 | 404 pass |
+| C4c ETA tile | cloud/eta-tile | 4fd0490 | 402 pass |
+| C5 perf | cloud/perf | 11d6999 | 398 pass |
+| C6 tests | cloud/tests | b56ea62 | 416 pass |
+| C7 restricted guide | cloud/restricted-settings-guide (from eta-tile) | ae5006c | 404 pass |
 | C8 docs | cloud/docs-1-0-4 | ac505d9 | 398 pass |
 
 - Every branch passed `./gradlew testDebugUnitTest` with 0 failures before its push.

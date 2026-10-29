@@ -226,18 +226,9 @@ class NavigationRelay @Inject constructor(
     /** The last navigation frame written, to skip Maps' back-to-back repeats. */
     private var lastPacket: ByteArray? = null
     private var lastPacketAt = 0L
-    /** What [lastPacket] was built from: a GPS tick with the same maneuver and metres skips the build. */
-    private var lastFrameManeuver: NavManeuver? = null
-    private var lastFrameDistance = -1
-    private var lastFrameRemaining = -1
-    /** The ETA clock, formatted once per maneuver rather than on every GPS tick. */
-    private var clockManeuver: NavManeuver? = null
-    private var clockText = ""
-
-    private fun etaClockFor(m: NavManeuver): String {
-        if (m !== clockManeuver) { clockManeuver = m; clockText = m.etaClock ?: etaClock(m.etaMinutes) }
-        return clockText
-    }
+    /** What [lastPacket] was built from: a GPS tick with the same inputs skips the build. */
+    private var lastFrameKey: FrameKey? = null
+    private val etaClocks = EtaClockCache { it.etaClock ?: etaClock(it.etaMinutes) }
 
     private val _clusterLinked = MutableStateFlow(false)
 
@@ -305,6 +296,7 @@ class NavigationRelay @Inject constructor(
                 clearCluster()
                 // Nothing to show: stop GPS until Maps speaks again (CHK-20).
                 lastPacket = null
+                lastFrameKey = null
                 remainingRule.newRoute()
                 idleLink()
             }
@@ -369,7 +361,10 @@ class NavigationRelay @Inject constructor(
     }
 
     private fun keepsTurn(prev: NavManeuver, fresh: NavManeuver) =
-        keepsTurnRule(prev.distanceMetres(), fresh.distanceMetres(), fresh.distanceKnown(), fresh.isArrival())
+        keepsTurnRule(
+            prev.distanceMetres(), fresh.distanceMetres(), fresh.distanceKnown(), fresh.isArrival(),
+            freshHasTurn = fresh.codeSource != NavManeuver.Source.FALLBACK,
+        )
 
     private fun NavManeuver.distanceKnown() = distanceToTurn.isNotBlank()
 
@@ -390,6 +385,7 @@ class NavigationRelay @Inject constructor(
         _clusterLinked.value = false
         rerouting = false
         lastPacket = null
+        lastFrameKey = null
         remainingRule.newRoute()
         turnHold.reset()
         idleLink()
@@ -443,9 +439,10 @@ class NavigationRelay @Inject constructor(
         if (!turnHold.mayShow(!turnUnknown, SystemClock.elapsedRealtime())) { holdFrame(); return }
         // Nothing real yet at route start: wait up to 3 s for the first figure, then send with FF x5.
         val remaining = remainingRule.frame(SystemClock.elapsedRealtime()) ?: run { holdFrame(); return }
-        // Counted metres unchanged since the last frame of this maneuver: same bytes, nothing to send.
-        if (fromGps && lastPacket != null && maneuver === lastFrameManeuver &&
-            distance == lastFrameDistance && remaining == lastFrameRemaining) return
+        val clock = etaClocks.get(maneuver, System.currentTimeMillis())
+        val frameKey = FrameKey(maneuver, distance, remaining, clock)
+        // Nothing the frame carries has changed since the last one: same bytes, nothing to send.
+        if (skipsGpsFrame(fromGps, lastFrameKey, frameKey)) return
         // `maneuverId` already holds the cluster code. The official app maps the
         // Mappls maneuver id onto these values in ViewOnClickListenerC4857A0,
         // and the app's own Maneuver constants are that table's output side.
@@ -463,7 +460,7 @@ class NavigationRelay @Inject constructor(
             //
             // The 0x33 heartbeat clock is a different field and is confirmed
             // correct on the dashboard - it keeps the real time.
-            clock = etaClockFor(maneuver),
+            clock = clock,
             // Beside the clock: how far is left of the whole journey. This was
             // never sent, so that slot showed the turn distance instead - which
             // is what the rider spotted on 19 August.
@@ -480,9 +477,7 @@ class NavigationRelay @Inject constructor(
         if (lastPacket?.contentEquals(packet) == true && (fromGps || now - lastPacketAt < REPEAT_SKIP_MS)) return
         lastPacket = packet
         lastPacketAt = now
-        lastFrameManeuver = maneuver
-        lastFrameDistance = distance
-        lastFrameRemaining = remaining
+        lastFrameKey = frameKey
 
         val delivered = runCatching { bleRepository.sendPacket(packet).first() }
             .getOrDefault(false)
@@ -659,9 +654,14 @@ internal class RemainingRule(metresBetween: (GpsCountdown.Fix, GpsCountdown.Fix)
     companion object { const val HOLD_MS = 3_000L }
 }
 
-/** Keep the old turn when the new post has no (or a 0 m) distance, is not arrival, and the old one had metres. */
-internal fun keepsTurnRule(prevMetres: Int, freshMetres: Int, freshKnown: Boolean, freshArrival: Boolean) =
-    (!freshKnown || freshMetres == 0) && !freshArrival && prevMetres > 0
+/**
+ * Keep the old turn when the new post has no (or a 0 m) distance, is not arrival, and the old one had metres.
+ * Never when the new post names a turn of its own ([freshHasTurn], from its text or arrow): a distance-less
+ * "Turn left" is shown as itself (held, then sent with the distance blank), not swapped for the old turn.
+ * Only a post that says no direction at all ("Head toward X") keeps it.
+ */
+internal fun keepsTurnRule(prevMetres: Int, freshMetres: Int, freshKnown: Boolean, freshArrival: Boolean, freshHasTurn: Boolean = false) =
+    (!freshKnown || freshMetres == 0) && !freshArrival && prevMetres > 0 && !freshHasTurn
 
 /** A frame with an unknown turn distance may wait [HOLD_MS], then goes out with the field blank. */
 internal class UnknownTurnHold {
@@ -687,3 +687,25 @@ internal fun carryTurn(prev: NavManeuver, fresh: NavManeuver): NavManeuver = pre
  */
 internal fun laneCodeFor(profile: VehicleProfile, code: Int): Int =
     if (profile.family == ClusterFamily.ACCESS_LCD) code else profile.officialLaneCode(code) ?: code
+
+/** Everything a navigation frame is built from, so a GPS tick can tell nothing changed without building it. */
+internal data class FrameKey(val maneuver: NavManeuver, val distance: Int, val remaining: Int, val clock: String)
+
+/** A GPS tick is skipped only when a frame has gone out and nothing it carries changed; Maps posts always go. */
+internal fun skipsGpsFrame(fromGps: Boolean, last: FrameKey?, now: FrameKey): Boolean = fromGps && last == now
+
+/**
+ * The ETA field for a frame. Maps' own clock is fixed for the maneuver, so it is formatted once.
+ * A computed one (now + minutes, or the clock when Maps gives neither) is redone every minute, so it never freezes.
+ */
+internal class EtaClockCache(private val compute: (NavManeuver) -> String) {
+    private var maneuver: NavManeuver? = null
+    private var minute = Long.MIN_VALUE
+    private var text = ""
+
+    fun get(m: NavManeuver, nowMs: Long): String {
+        val min = if (m.etaClock != null) -1L else nowMs / 60_000L
+        if (m !== maneuver || min != minute) { maneuver = m; minute = min; text = compute(m) }
+        return text
+    }
+}

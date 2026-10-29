@@ -5,7 +5,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Test
 
 /**
@@ -73,7 +72,6 @@ class MapsRealSamplesTest {
         assertEquals("1244AM", m.etaClock)
     }
 
-    @Ignore("fails today: parse() returns null when the title is empty, so the right turn never reaches the dashboard (job C3 step 1)")
     @Test
     fun `6 empty title with turn right is still a right turn, distance unknown`() {
         val m = old("", "Turn right", "11 min · 4.2 km · 12:29 AM ETA")
@@ -87,10 +85,7 @@ class MapsRealSamplesTest {
     @Test
     fun `7 empty title with only road names is never a turn and does not crash`() {
         val m = old("", "Hyderabad - Janagam Hwy / Koti Women's College Rd / Main Rd", "22 min · 4.9 km · 7:51 PM ETA")
-        assertTrue(
-            "road names must not become a turn",
-            m == null || m.maneuverId !in setOf(ProtocolEngine.Maneuver.TURN_LEFT, ProtocolEngine.Maneuver.TURN_RIGHT),
-        )
+        assertNull("road names must not become a turn", m)
     }
 
     // ---- NEW live-update layout ----
@@ -134,7 +129,6 @@ class MapsRealSamplesTest {
         assertTrue(f.subText, f.subText.endsWith("3.6 km"))
     }
 
-    @Ignore("fails today: DISTANCE uses \\s*, which does not match U+00A0, so parse() finds no distance and returns null (job C3 step 2)")
     @Test
     fun `11b right turn in 1_4 km with a non-breaking space, remaining 3_6 km`() {
         val m = MapsNotificationParser.parseLive(live(sample11Title, "Arrive 1:29 AM", 642, 4288, "1.4 km")!!)

@@ -116,7 +116,7 @@ class MapsNotificationListener : NotificationListenerService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /** Maps frames off the main thread, one at a time and in posting order (no frame overtakes another). */
-    private val mapsLane = Dispatchers.Default.limitedParallelism(1)
+    private val mapsLane = serialLane()
 
     /** Identifies the manoeuvre arrow. Built lazily on first navigation. */
     private val matcher by lazy { ArrowMatcher(applicationContext) }
@@ -566,7 +566,8 @@ class MapsNotificationListener : NotificationListenerService() {
     override fun onListenerDisconnected() {
         // Nobody is reading Maps any more: stop GPS and blank the cluster.
         ListenerWatchdog.onDisconnected(this)
-        relay.stop()
+        // Behind any frame still in the lane, like a Maps removal, so a late frame cannot restart the relay.
+        scope.launch(mapsLane) { kotlinx.coroutines.withContext(Dispatchers.Main) { relay.stop() } }
         endAllCalls()
         super.onListenerDisconnected()
     }
@@ -712,7 +713,7 @@ object MapsNotificationParser {
     internal fun beforeRoadName(s: String): String =
         ROAD_NAME_START.find(s)?.let { s.substring(0, it.range.first) } ?: s
 
-    private val ROAD_NAME_START = Regex("""\s(?:onto|toward|towards|via|to\s+stay)\s""", RegexOption.IGNORE_CASE)
+    private val ROAD_NAME_START = Regex("""(?:^|\s)(?:onto|toward|towards|via|to\s+stay)\s""", RegexOption.IGNORE_CASE)
 
     /** Starts with a maneuver verb ("Turn right", "Keep left"), so "Left Bank Rd" is not one. */
     internal fun isTurnInstruction(text: String): Boolean = TURN_INSTRUCTION.containsMatchIn(text)
@@ -933,6 +934,9 @@ object MapsNotificationParser {
         return total.takeIf { it > 0 }
     }
 }
+
+/** One task at a time, in the order they were launched: Maps frames must never overtake each other. */
+internal fun serialLane(): kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Default.limitedParallelism(1)
 
 /** CallStyle ongoing (2) is an answered call, unless it carries a full-screen intent: Samsung's ringing one does. */
 internal fun isAnsweredCall(callType: Int, hasFullScreenIntent: Boolean): Boolean =

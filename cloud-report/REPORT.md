@@ -153,3 +153,6 @@ Not checked: the guide header still says version 1.0.0-tester, which I left as i
   - The blank distance after a distance-less "Turn left".
   - The ETA tile and the cluster ETA when Maps gives no minutes.
   - The restricted settings dialog on an Android 13+ phone with a sideloaded build.
+
+## Merge check (all round 2 branches together)
+On a local scratch branch (not pushed), I merged `cloud/nav-fixes-2`, `cloud/tests`, `cloud/perf`, `cloud/restricted-settings-guide` and `cloud/docs-1-0-4` into Ride_Connect_X 893915d, in that order. All five merged with no conflicts, and `testDebugUnitTest` passed 430 of 430 tests with 0 failures. The `MapsNotificationListener.kt` overlap I flagged does not conflict.

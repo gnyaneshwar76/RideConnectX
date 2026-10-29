@@ -52,3 +52,22 @@ New file `MoreCoverageTest.kt`, 14 tests, all pass (399 total on the branch):
 
 ## Merge order
 `cloud/nav-fixes`, then `cloud/nav-turn-keep` and `cloud/more-tests` (both are built on it), then `cloud/ui-smooth`, `cloud/perf-screen-off` and `cloud/maps-real-samples` (un-ignore its 2 tests after nav-fixes is in).
+
+---
+# Round 2 (after 1.0.3-tester; branches from Ride_Connect_X 893915d)
+
+## C4b nav - `cloud/nav-fixes-2` (0846446)
+Changes:
+1. `MapsNotificationListener.kt` `ROAD_NAME_START`: `(?:^|\s)` before onto/toward/towards/via/to stay. "toward Right Side Colony" is now STRAIGHT, where it was RIGHT. "Ontario Rd" is untouched.
+2. `onListenerDisconnected`: `relay.stop()` now runs through `mapsLane` (then on main), behind any queued frames, the same as a Maps removal.
+3. ETA: a new `EtaClockCache`. Maps' own clock is formatted once per maneuver. A computed clock (now + minutes, or the plain clock) is redone every minute. The clock is part of the new `FrameKey`, so a GPS tick with unchanged metres still sends when the ETA minute changes.
+4. `keepsTurnRule(freshHasTurn)`: a distance-less post that names a turn (from its text or icon) is shown as itself. It is held 3 s, then sent with the distance blank, and is not swapped for the old turn. Only a post with no direction ("Head east on ...") keeps the old turn.
+5. Tests: both `@Ignore` removed from `MapsRealSamplesTest` (now 13/13 pass), and sample 7 is `assertNull`. New `NavFixes2Test` (8): relay skip, ETA cache (fixed / per minute / new maneuver), lane order (200 tasks, in order, never two at once), road names starting with onto/toward, and turn carry with real samples.
+
+Tests: `testDebugUnitTest` 406 pass, 0 fail. The existing T5 `keepsTurnRule` test is unchanged and passes, because the new parameter has a default.
+
+Risks:
+- After a distance-less "Turn left" that repeats the same turn, the cluster no longer keeps counting the old metres. It holds the frame 3 s, then shows the arrow with a blank distance until Maps gives one again. This is what "no carry without a real signal" asks for, but it is a visible change.
+- Listener disconnect now stops the relay a moment later, because it is asynchronous.
+
+Not checked: on a phone or a ride; the ETA field on the cluster at a minute change.

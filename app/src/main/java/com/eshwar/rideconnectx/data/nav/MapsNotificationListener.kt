@@ -408,11 +408,13 @@ class MapsNotificationListener : NotificationListenerService() {
         // never lit during the 18 August test.
         // The 30 Sep ride: a friend's call never showed on the cluster, and
         // nothing recorded whether the app even saw it.
-        if (isCall && !isTrustedCallSource(sbn.packageName)) {
+        // Asked once per post: it is two system lookups, on the main thread, for every call notification.
+        val trustedCall = isCall && isTrustedCallSource(sbn.packageName)
+        if (isCall && !trustedCall) {
             logAlert("CALL notification from ${sbn.packageName} IGNORED (not a trusted dialer)")
         }
         when {
-            isCall && isTrustedCallSource(sbn.packageName) -> {
+            trustedCall -> {
                 val who = callTitle(sbn)
                 if (category == Notification.CATEGORY_MISSED_CALL) {
                     // Not ringing any more: a stale ring entry would repeat 0x32 forever.

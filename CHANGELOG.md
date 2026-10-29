@@ -2,6 +2,24 @@
 
 All notable changes to RideConnectX. Format: Keep a Changelog. Versions follow the release tag.
 
+## [1.0.3-tester] - 2026-10-29 (testers only)
+
+### Fixed
+- Google Maps turns on Android 11 and 12: an empty distance title is accepted (unknown distance, never a fake "0 m").
+- Android 16 Maps: the hidden space between number and unit ("1.4 km") no longer breaks the distance reading.
+- Road names such as "Left Bank Rd" can no longer be read as a turn.
+- Maps icon work moved off the main thread; icon loaded once.
+- Ride log is safe for several threads and loses nothing on a crash.
+
+### Improved
+- Navigation relay: 500 ms GPS tick, skips unchanged ticks, ETA clock worked out once per turn.
+- Smoother screens: idle animations stop when not shown, sign-in background drawn once, stable list keys, statistics redraws only the live card.
+- Real Maps 26.42 notifications are now unit tests.
+
+### Known limits
+- Xiaomi "no turns" still needs a ride log from the phone.
+- Small known risks for 1.0.4: a road name that starts with "toward", a late frame after the reader disconnects, a frozen ETA when Maps sends no clock.
+
 ## [1.0.2-tester] - 2026-10-27 (testers only)
 
 ### Added

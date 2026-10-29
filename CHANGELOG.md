@@ -2,6 +2,27 @@
 
 All notable changes to RideConnectX. Format: Keep a Changelog. Versions follow the release tag.
 
+## [1.0.4-tester] - unreleased (draft, testers only)
+
+### Added
+- "Switch greyed out?" help: on Android 13 and newer, if Notification access is still off after the Settings page and the app was not installed from the Play Store, the app shows the Allow restricted settings steps and a button to the app info page.
+- The ETA tile shows the arrival time ("8:48 pm") when Maps gives no minutes (Android 16 and 17 Maps).
+
+### Fixed
+- A road name at the start of the text ("toward Right Side Colony") can no longer be read as a turn.
+- A late Maps frame after the notification reader disconnects can no longer restart navigation.
+- The ETA on the dashboard keeps moving when Maps sends no arrival clock; it no longer freezes.
+- A "Turn left" with no distance is shown as that turn, not swapped for the previous one.
+
+### Improved
+- Call and message log lines are written off the main thread; one dialer check per call.
+- The Navigation page's 30-second clock stops while the app is in the background.
+- More unit tests, including real Android 17 Maps notifications.
+
+### Known limits
+- After a "Turn left" with no distance, the dashboard shows a blank distance until Maps gives one again.
+- The restricted settings menu path differs between phones and Android versions.
+
 ## [1.0.3-tester] - 2026-10-29 (testers only)
 
 ### Fixed

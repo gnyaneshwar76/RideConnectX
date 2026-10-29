@@ -140,6 +140,25 @@ Already have RideConnectX on the phone?
 2. This removes the app and its data on the phone.
 3. Also unpair the bike from the phone's Bluetooth settings if you want.
 
+## If Android blocks Notification access
+
+On Android 13 and newer, an app installed from a file (not from the Play Store) cannot get Notification access at first: the switch is greyed out, or Android says "Restricted setting".
+
+1. Open **Settings > Apps > RideConnectX**.
+2. Tap the **three dots** at the top right.
+3. Tap **Allow restricted settings**. Confirm with your PIN or fingerprint if asked.
+4. Go back to RideConnectX and turn on Notification access again.
+5. RideConnectX shows these steps itself ("Switch greyed out?") with a button that opens the app info page.
+6. No three dots or no such option? Your phone may name it differently. Tap Report a problem and say what you see.
+
+## Play Protect warning when installing
+
+Google Play Protect may say the app is unknown or was blocked.
+
+1. Tap **More details**.
+2. Tap **Install anyway**.
+3. **Do not switch Play Protect off.** It protects your phone from other apps; RideConnectX does not need it off.
+
 ## How to report a problem
 
 1. Open RideConnectX. Go to **About**, then **Information**. Tap **Report a problem**.

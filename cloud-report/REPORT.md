@@ -95,3 +95,19 @@ Checked, no change needed:
 Tests: 398 pass, 0 fail. These are timing changes, so there is no new unit test.
 Risks: alert lines now reach the ride log a moment later.
 Not checked: battery measurement on a phone with the screen off.
+
+## C6 tests - `cloud/tests` (b56ea62)
+Changes (tests only, no app code):
+- `MoreCoverageTest` (14), carried over from the unmerged `cloud/more-tests`:
+  - ProtocolEngine: envelope/checksum, `0000M` vs FF x5, distance text, identical bytes.
+  - Parser: empty title, U+00A0/U+202F, km/m/mi/ft, Arrive 12/24 h, remaining = progressMax - progress (and past the end / negative).
+  - Relay: carryTurn, UnknownTurnHold, RemainingRule.
+- New `Android17SamplesTest` (4) with the two real Android 17 frames:
+  - "70 m · Turn left", 0/5849: LEFT, 70 m, remaining 5.8 km, 0137AM, no minutes.
+  - "1.4 km · Turn right at Madina Cir to stay on NH 44", 650/4297: RIGHT, 1400 m, remaining 3.6 km, 0132AM.
+  - The same two with non-breaking spaces.
+  - Sample 1 run through to the cluster frame: code byte, "0070M", checksum.
+
+Tests: 416 pass, 0 fail.
+Risks: none to app behaviour.
+Not checked: the km display style (only metres asserted, because kmStyle is shared global state).

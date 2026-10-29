@@ -42,3 +42,13 @@ Checked, no change needed:
 - Room/DataStore in composables: no `runBlocking` or blocking reads. Pull-to-refresh calls suspend `checkOnce()`, which is main-safe. Statistics' day timer is `WhileSubscribed`. Only About used `collectAsState`, and that is fixed in C2.
 - Remaining `SharingStarted.Eagerly` (theme, auth, odometer): small DataStore flows with no timers. Left as they are.
 - 376 tests pass.
+
+## C6 - `cloud/more-tests` (built on `cloud/nav-fixes`; it tests the C3 parser fixes)
+New file `MoreCoverageTest.kt`, 14 tests, all pass (399 total on the branch):
+- ProtocolEngine: frame envelope and checksum; real 0 remaining is `0000M`, unknown is FF x5; distance text such as `----M` is always 5 characters; the same input gives identical bytes. Metres only, so the km display style is not touched.
+- Parser: empty title (a turn only when the text is a turn); U+00A0 and U+202F; km/m/mi/ft and decimal commas; `Arrive` in 12 h and 24 h; remaining = progressMax - progress (3646 m -> 3.6 km, 999 m, 1.0 km, 0 m; nothing when progress is past the end or negative).
+- Relay: carryTurn keeps the old arrow and distance and takes the new ETA and remaining; the "0 m" repeat keeps the turn; UnknownTurnHold reset; RemainingRule holds 3 s, then sends unknown.
+- The `freshNewTurn` case is tested on the C4 branch, where it exists.
+
+## Merge order
+`cloud/nav-fixes`, then `cloud/nav-turn-keep` and `cloud/more-tests` (both are built on it), then `cloud/ui-smooth`, `cloud/perf-screen-off` and `cloud/maps-real-samples` (un-ignore its 2 tests after nav-fixes is in).

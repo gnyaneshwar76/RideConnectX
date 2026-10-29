@@ -543,10 +543,13 @@ class MapsNotificationListener : NotificationListenerService() {
         scope.launch(mapsLane) { matcher.warmUp() }
     }
 
+    /** A file write: off the main thread, on the serial lane so alert lines keep their order. */
     private fun logAlert(line: String) {
-        runCatching {
-            EntryPointAccessors.fromApplication(applicationContext, ServiceEntryPoint::class.java)
-                .rideLog().alert(line)
+        scope.launch(mapsLane) {
+            runCatching {
+                EntryPointAccessors.fromApplication(applicationContext, ServiceEntryPoint::class.java)
+                    .rideLog().alert(line)
+            }
         }
     }
 

@@ -29,3 +29,16 @@ Only `presentation/` changed. The aim was no visual change.
 - A plain left/right with no turn verb in front ("Neredmet - Left Bank Rd") is treated as a road name, so the result is STRAIGHT with source FALLBACK. The arrow icon still wins.
 - 6 new tests in `TurnKeepRealSamplesTest.kt`. All 391 tests pass.
 - Risk: a Maps wording that gives a direction with no verb in front ("Left onto X") would now read as straight unless the icon says otherwise. No real capture shows that wording.
+
+## C5 - `cloud/perf-screen-off` (from `Ride_Connect_X`)
+Fixed (smallest changes):
+- `MapsNotificationListener.relayClusterAlert`: the trusted-dialer check (default dialer + package flags, two system lookups on the main thread) ran twice per call notification. It now runs once.
+- `NavigationScreen`: the 30 s clock for the Maps-off card ran while the app was in the background. It now runs only while the app is on screen, and updates at once when the app comes back.
+
+Checked, no change needed:
+- Relay ticker and Maps listener: already fixed in C3 (500 ms tick, unchanged ticks skipped, icon work off main).
+- BLE write loop (`BleRepositoryImpl`): runs on IO. The reconnect watcher sleeps instead of polling. The heartbeat runs only while linked, and the protocol needs it.
+- `RideTracker` 1 s ticker: runs only while linked, and publishes only when something collects it.
+- Room/DataStore in composables: no `runBlocking` or blocking reads. Pull-to-refresh calls suspend `checkOnce()`, which is main-safe. Statistics' day timer is `WhileSubscribed`. Only About used `collectAsState`, and that is fixed in C2.
+- Remaining `SharingStarted.Eagerly` (theme, auth, odometer): small DataStore flows with no timers. Left as they are.
+- 376 tests pass.

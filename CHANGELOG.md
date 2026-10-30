@@ -2,6 +2,21 @@
 
 All notable changes to RideConnectX. Format: Keep a Changelog. Versions follow the release tag.
 
+## [1.0.4-tester] - 2026-10-30 (testers only)
+
+### Fixed
+- Maps turn reading: a road name that starts with "toward" or "onto" is no longer read as a turn; a turn with no distance no longer keeps the old turn; a frozen arrival time is fixed when Maps sends no clock.
+- When the notification reader disconnects, the relay stops safely behind the queued frames.
+- Bluetooth: the app no longer crashes if Bluetooth permission is taken away while it runs.
+
+### Improved
+- The ETA tile on the Navigation screen shows the arrival time ("8:48 pm") on Android 16 and 17, where Maps gives no minutes.
+- Fewer slow lookups on the main thread for calls; the Maps-off card timer stops when the app is in the background; call and message log lines are written off the main thread.
+- More unit tests, including real Android 17 Maps messages.
+
+### Known limits
+- Not yet proven on the scooter: the arrival clock on the cluster at a minute change, and the new Bluetooth guards.
+
 ## [1.0.3-tester] - 2026-10-29 (testers only)
 
 ### Fixed

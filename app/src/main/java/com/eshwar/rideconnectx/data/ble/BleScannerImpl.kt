@@ -56,7 +56,7 @@ class BleScannerImpl @Inject constructor(
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val address = result.device.address
-                val name = ScooterCandidateFilter.pickName(result.scanRecord?.deviceName, result.device.name)
+                val name = ScooterCandidateFilter.pickName(result.scanRecord?.deviceName, runCatching { result.device.name }.getOrNull())
                 val accepted = ScooterCandidateFilter.isScooterCandidate(name, address, savedAddress)
                 // Once per address per scan; no MAC in the log.
                 if (logged.add(address)) rideLog.diag("SCAN name=${name ?: "?"} accepted=$accepted rssi=${result.rssi}")
@@ -85,7 +85,15 @@ class BleScannerImpl @Inject constructor(
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
-        scanner.startScan(null, settings, callback)
+        // Permission revoked while the app runs: end the scan like a failed scan.
+        try {
+            scanner.startScan(null, settings, callback)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Scan not started: Bluetooth permission revoked")
+            close()
+            awaitClose { }
+            return@callbackFlow
+        }
         
         // 30 Second Timeout
         val timeoutJob = launch {

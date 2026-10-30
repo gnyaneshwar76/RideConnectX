@@ -18,23 +18,26 @@ tapt() { # visible text -> tap
   set -- $b; [ -n "$1" ] && $A shell input tap $(( ($1+$3)/2 )) $(( ($2+$4)/2 )) && return 0; return 1
 }
 
+# Start point and destination can be overridden (env LON, LAT, DEST, STEP_LON, STEP_LAT) for phones whose Maps cannot route from Hyderabad.
+lon=${LON:-78.4867}; lat=${LAT:-17.3850}; DEST=${DEST:-Charminar,Hyderabad}
+SLON=${STEP_LON:--0.0002}; SLAT=${STEP_LAT:--0.0003}
 $A shell svc power stayon true; $A shell input keyevent KEYCODE_WAKEUP; $A shell input keyevent 82
+$A shell settings put secure location_mode 3
 for p in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION POST_NOTIFICATIONS; do $A shell pm grant $M android.permission.$p 2>/dev/null; done
-$A emu geo fix 78.4867 17.3850 >/dev/null
-$A shell "am start -a android.intent.action.VIEW -d 'google.navigation:q=Charminar,Hyderabad&mode=l' $M" >/dev/null 2>&1
+$A emu geo fix $lon $lat >/dev/null
+$A shell "am start -a android.intent.action.VIEW -d 'google.navigation:q=$DEST&mode=l' $M" >/dev/null 2>&1
 sleep 12
 # first-run screens (terms, sign-in, Location Accuracy, route preview) differ per Maps version: keep answering until a Maps notification exists
 for round in $(seq 1 12); do
   for t in Skip "Got it" Dismiss "Turn on" "No thanks" "Not now" OK Start; do tapt "$t" && { echo "tapped $t"; sleep 3; }; done
   [ "$($A shell dumpsys notification --noredact | grep -c 'pkg=com.google.android.apps.maps')" -gt 0 ] && break
-  $A shell "am start -a android.intent.action.VIEW -d 'google.navigation:q=Charminar,Hyderabad&mode=l' $M" >/dev/null 2>&1; sleep 25
+  $A shell "am start -a android.intent.action.VIEW -d 'google.navigation:q=$DEST&mode=l' $M" >/dev/null 2>&1; sleep 25
 done
 sleep 5
 dump start
 $A shell screencap -p /sdcard/m.png; $A pull /sdcard/m.png "$OUT/maps.png" >/dev/null
-lon=78.4867; lat=17.3850
 for i in $(seq 1 24); do
-  lon=$(awk "BEGIN{print $lon-0.0002}"); lat=$(awk "BEGIN{print $lat-0.0003}")
+  lon=$(awk "BEGIN{print $lon+($SLON)}"); lat=$(awk "BEGIN{print $lat+($SLAT)}")
   $A emu geo fix $lon $lat >/dev/null; sleep 3
   [ $i = 6 ] && dump step6
   [ $i = 12 ] && dump step12

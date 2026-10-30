@@ -650,7 +650,13 @@ class BleForegroundService : Service() {
             // AllowedException if we were launched from the background. Neither is
             // worth a crash: the pairing screen already reports missing permissions.
             Log.e(TAG, "Could not start foreground service — stopping", e)
-            stopSelf()
+            // A service started with startForegroundService() crashes the app if it stops
+            // without ever calling startForeground, so try a plain call once before stopSelf.
+            if (!inForeground) {
+                runCatching { startForeground(1, createNotification("Starting RideConnectX...")) }
+                    .onFailure { Log.e(TAG, "Plain startForeground also failed", it) }
+                stopSelf()
+            }
             false
         }
     }
@@ -691,7 +697,8 @@ class BleForegroundService : Service() {
             }
 
             // Saved name covers a reconnect where the stack returns no name, so the motorcycle path is still chosen.
-            connectedDeviceName = ClusterNameChoice.pick(device.name, null, savedName?.takeIf { it.isNotBlank() })
+            // SecurityException if BLUETOOTH_CONNECT was revoked: treat as no name.
+            connectedDeviceName = ClusterNameChoice.pick(runCatching { device.name }.getOrNull(), null, savedName?.takeIf { it.isNotBlank() })
                 ?: FALLBACK_DEVICE_NAME
             LinkDiagnostics.reset()
 
@@ -717,12 +724,20 @@ class BleForegroundService : Service() {
     @SuppressLint("MissingPermission")
     private fun openGatt(device: BluetoothDevice) {
         Log.d(TAG, "connectGatt(TRANSPORT_LE) -> ${device.address}, attempt ${retryCount + 1}")
-        bluetoothGatt = device.connectGatt(
-            this,
-            false,
-            gattCallback,
-            BluetoothDevice.TRANSPORT_LE,
-        )
+        bluetoothGatt = try {
+            device.connectGatt(
+                this,
+                false,
+                gattCallback,
+                BluetoothDevice.TRANSPORT_LE,
+            )
+        } catch (e: SecurityException) {
+            // BLUETOOTH_CONNECT revoked: report the failure and use the normal bounded retry.
+            Log.e(TAG, "connectGatt refused: Bluetooth permission revoked", e)
+            _connectionState.tryEmit(BluetoothProfile.STATE_DISCONNECTED)
+            if (willRetry(GATT_ERROR_133)) retry()
+            return
+        }
         mainHandler.removeCallbacks(connectWatchdog)
         if (currentFamily() == com.eshwar.rideconnectx.domain.ClusterFamily.MOTORCYCLE) {
             mainHandler.postDelayed(connectWatchdog, AttemptRules.MOTORCYCLE_CONNECT_TIMEOUT_MS)

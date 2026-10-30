@@ -417,11 +417,13 @@ class MapsNotificationListener : NotificationListenerService() {
         // never lit during the 18 August test.
         // The 30 Sep ride: a friend's call never showed on the cluster, and
         // nothing recorded whether the app even saw it.
-        if (isCall && !isTrustedCallSource(sbn.packageName)) {
+        // Asked once per post: it is two system lookups, on the main thread, for every call notification.
+        val trustedCall = isCall && isTrustedCallSource(sbn.packageName)
+        if (isCall && !trustedCall) {
             logAlert("CALL notification from ${sbn.packageName} IGNORED (not a trusted dialer)")
         }
         when {
-            isCall && isTrustedCallSource(sbn.packageName) -> {
+            trustedCall -> {
                 val who = callTitle(sbn)
                 if (category == Notification.CATEGORY_MISSED_CALL) {
                     // Not ringing any more: a stale ring entry would repeat 0x32 forever.
@@ -541,10 +543,13 @@ class MapsNotificationListener : NotificationListenerService() {
         scope.launch(mapsLane) { matcher.warmUp() }
     }
 
+    /** A file write: off the main thread, on the serial lane so alert lines keep their order. */
     private fun logAlert(line: String) {
-        runCatching {
-            EntryPointAccessors.fromApplication(applicationContext, ServiceEntryPoint::class.java)
-                .rideLog().alert(line)
+        scope.launch(mapsLane) {
+            runCatching {
+                EntryPointAccessors.fromApplication(applicationContext, ServiceEntryPoint::class.java)
+                    .rideLog().alert(line)
+            }
         }
     }
 

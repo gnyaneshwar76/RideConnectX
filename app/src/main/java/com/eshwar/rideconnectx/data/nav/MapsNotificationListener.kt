@@ -117,6 +117,8 @@ class MapsNotificationListener : NotificationListenerService() {
 
     /** Maps frames off the main thread, one at a time and in posting order (no frame overtakes another). */
     private val mapsLane = serialLane()
+    private class MapsFrame(val sbn: StatusBarNotification, val extras: android.os.Bundle, val title: String, val text: String, val subText: String)
+    private val newestFrame = java.util.concurrent.atomic.AtomicReference<MapsFrame?>(null)
 
     /** Identifies the manoeuvre arrow. Built lazily on first navigation. */
     private val matcher by lazy { ArrowMatcher(applicationContext) }
@@ -263,7 +265,12 @@ class MapsNotificationListener : NotificationListenerService() {
         val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString().orEmpty()
 
         // Icon rendering and matching run several times a second for a whole ride: not on the main thread.
-        scope.launch(mapsLane) { onMapsFrame(sbn, extras, title, text, subText) }
+        // A slow phone falls behind Maps: only the newest post is worth its work, old ones must not queue.
+        if (newestFrame.getAndSet(MapsFrame(sbn, extras, title, text, subText)) == null) {
+            scope.launch(mapsLane) {
+                newestFrame.getAndSet(null)?.let { onMapsFrame(it.sbn, it.extras, it.title, it.text, it.subText) }
+            }
+        }
     }
 
     private fun onMapsFrame(sbn: StatusBarNotification, extras: android.os.Bundle, title: String, text: String, subText: String) {

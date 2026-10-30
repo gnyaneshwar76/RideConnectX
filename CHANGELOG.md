@@ -2,6 +2,19 @@
 
 All notable changes to RideConnectX. Format: Keep a Changelog. Versions follow the release tag.
 
+## [1.0.5-tester] - 2026-10-31 (testers only)
+
+### Fixed
+- Maps reader: the app now asks the system to reconnect the reader every minute while it is down and the Bluetooth service runs. This may not be enough on Xiaomi HyperOS, where the cleaner kills the app.
+- A turn with no distance is sent at once with the metres blank, not held for 3 seconds.
+- The same turn keeps its metres when Maps drops them while stopped at a signal (Android 16 and 17).
+
+### Improved
+- Slow phones: old Maps posts, GPS ticks and turns no longer queue behind each other; only the newest is worked on, so the cluster should not fall behind.
+
+### Known limits
+- Not yet proven on a real phone or the scooter. Maps gives no metres at the start of a route while standing still, so that first turn shows no metres until the rider moves.
+
 ## [1.0.4-tester] - 2026-10-30 (testers only)
 
 ### Fixed

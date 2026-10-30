@@ -6,7 +6,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import com.eshwar.rideconnectx.data.repository.UnknownTurnHold
 import com.eshwar.rideconnectx.data.repository.keepsTurnRule
 import org.junit.Test
 
@@ -467,16 +466,6 @@ class MapsNotificationParserTest {
         assertTrue(!keepsTurnRule(prevMetres = 0, freshMetres = 0, freshKnown = false, freshArrival = false))
         assertTrue(!keepsTurnRule(prevMetres = 120, freshMetres = 0, freshKnown = false, freshArrival = true))
         assertTrue(!keepsTurnRule(prevMetres = 120, freshMetres = 90, freshKnown = true, freshArrival = false))
-    }
-
-    @Test
-    fun `T6 first frame with no previous turn is held 3 s, then goes`() {
-        val h = UnknownTurnHold()
-        assertTrue(!h.mayShow(known = false, nowMs = 10_000))
-        assertTrue(!h.mayShow(known = false, nowMs = 12_900))
-        assertTrue(h.mayShow(known = false, nowMs = 13_050))
-        assertTrue(h.mayShow(known = true, nowMs = 13_100))
-        assertTrue(!h.mayShow(known = false, nowMs = 14_000))   // a later unknown waits again
     }
 
     @Test

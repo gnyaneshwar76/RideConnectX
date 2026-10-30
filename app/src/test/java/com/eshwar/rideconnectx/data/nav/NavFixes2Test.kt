@@ -112,14 +112,19 @@ class NavFixes2Test {
         fresh.distanceToTurn.isNotBlank(),
         freshArrival = false,
         freshHasTurn = fresh.codeSource != NavManeuver.Source.FALLBACK,
+        freshSameTurn = fresh.instruction == prev.instruction && fresh.maneuverId == prev.maneuverId,
     )
 
     @Test
     fun `a distance-less turn is shown as itself, not swapped for the old turn`() {
         // Sample 5 then sample 6: the right turn must not hide behind "40 m left".
         assertTrue(!keeps(old("40 m", "Turn left", "13 min · 4.8 km · 12:44 AM ETA"), old("", "Turn right", "11 min · 4.2 km · 12:29 AM ETA")))
-        // Sample 3 then sample 10: even the same "Turn left" is not carried without a distance.
-        assertTrue(!keeps(old("50 m", "Turn left", "13 min · 4.9 km · 12:22 AM ETA"), live("Turn left", "Arrive 1:32 AM", 0, 4848)))
+    }
+
+    @Test
+    fun `the same turn without a distance keeps its metres (stopped at a signal)`() {
+        // Sample 3 then sample 10.
+        assertTrue(keeps(old("50 m", "Turn left", "13 min · 4.9 km · 12:22 AM ETA"), live("Turn left", "Arrive 1:32 AM", 0, 4848)))
     }
 
     @Test

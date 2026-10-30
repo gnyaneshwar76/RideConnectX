@@ -75,7 +75,7 @@ class NavigationRelay @Inject constructor(
      * only the newest navigation frame), so nothing piles up here.
      */
     private sealed interface Update {
-        data class Turn(val maneuver: NavManeuver) : Update
+        object Turn : Update
         data class Reroute(val what: String) : Update
         data class Fix(val fix: GpsCountdown.Fix) : Update
         object Tick : Update
@@ -83,6 +83,10 @@ class NavigationRelay @Inject constructor(
         data class Link(val connected: Boolean) : Update
     }
     private val updates = Channel<Update>(Channel.UNLIMITED)
+    // On a slow phone or a slow write, only the newest turn and GPS state matter: stale ones must not queue.
+    private val newestTurn = java.util.concurrent.atomic.AtomicReference<NavManeuver?>(null)
+    private val tickQueued = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val fixesQueued = java.util.concurrent.atomic.AtomicInteger(0)
 
     private fun linked() = bleRepository.connectionState.value is ConnectionState.Connected
 
@@ -141,7 +145,6 @@ class NavigationRelay @Inject constructor(
      */
     private val remainingRule = RemainingRule(::metresBetween)
     private var holdJob: Job? = null
-    private val turnHold = UnknownTurnHold()
     private var countdownOn = false
     private var locationCallback: LocationCallback? = null
     private var tickJob: Job? = null
@@ -166,6 +169,7 @@ class NavigationRelay @Inject constructor(
                 // All of them, stamped with the fix's own time: with the screen off the
                 // fused provider can deliver several at once (ride log 4: counts froze 8-45 s).
                 fixCount += result.locations.size
+                fixesQueued.addAndGet(result.locations.size)
                 for (l in result.locations) updates.trySend(Update.Fix(GpsCountdown.Fix(
                     lat = l.latitude, lon = l.longitude, accuracyM = l.accuracy,
                     speedMps = if (l.hasSpeed()) l.speed else 0f,
@@ -190,7 +194,7 @@ class NavigationRelay @Inject constructor(
         tickJob = appScope.launch {
             while (true) {
                 delay(TICK_MS)
-                updates.trySend(Update.Tick)
+                if (tickQueued.compareAndSet(false, true)) updates.trySend(Update.Tick)
                 // Shows in the ride log whether fixes stop with the screen off. Counts only, no places.
                 val now = android.os.SystemClock.elapsedRealtime()
                 if (now - fixWindowAt >= 10_000L) {
@@ -219,7 +223,9 @@ class NavigationRelay @Inject constructor(
         relay(active.maneuver, fromGps = true)
     }
 
-    fun submit(maneuver: NavManeuver) { updates.trySend(Update.Turn(maneuver)) }
+    fun submit(maneuver: NavManeuver) {
+        if (newestTurn.getAndSet(maneuver) == null) updates.trySend(Update.Turn)
+    }
 
     fun submitReroute(what: String) { updates.trySend(Update.Reroute(what)) }
 
@@ -255,7 +261,7 @@ class NavigationRelay @Inject constructor(
         // remaining are taken from it. Otherwise the cluster flipped between two states (ride log 4).
         val prev = (_state.value as? NavState.Active)?.maneuver
         // A new route never inherits the last route's remaining distance.
-        if (prev == null) { remainingRule.newRoute(); turnHold.reset() }
+        if (prev == null) remainingRule.newRoute()
         val carried = prev != null && keepsTurn(prev, fresh)
         val maneuver = if (carried) carryTurn(prev!!, fresh) else fresh
         _state.value = NavState.Active(maneuver)
@@ -318,15 +324,15 @@ class NavigationRelay @Inject constructor(
     init {
         appScope.launch {
             for (u in updates) when (u) {
-                is Update.Turn -> onManeuver(u.maneuver)
+                Update.Turn -> newestTurn.getAndSet(null)?.let { onManeuver(it) }
                 is Update.Reroute -> onReroute(u.what)
                 is Update.Fix -> {
                     countdown.onFix(u.fix)
                     remainingRule.onFix(u.fix)
                     // Do not wait for the next tick: its timer stops when the CPU sleeps.
-                    onTick()
+                    if (fixesQueued.decrementAndGet() == 0) onTick()
                 }
-                Update.Tick -> onTick()
+                Update.Tick -> { tickQueued.set(false); onTick() }
                 Update.HoldEnd -> (_state.value as? NavState.Active)?.let { relay(it.maneuver) }
                 is Update.Link -> onLink(u.connected)
             }
@@ -364,6 +370,7 @@ class NavigationRelay @Inject constructor(
         keepsTurnRule(
             prev.distanceMetres(), fresh.distanceMetres(), fresh.distanceKnown(), fresh.isArrival(),
             freshHasTurn = fresh.codeSource != NavManeuver.Source.FALLBACK,
+            freshSameTurn = fresh.instruction == prev.instruction && fresh.maneuverId == prev.maneuverId,
         )
 
     private fun NavManeuver.distanceKnown() = distanceToTurn.isNotBlank()
@@ -387,7 +394,6 @@ class NavigationRelay @Inject constructor(
         lastPacket = null
         lastFrameKey = null
         remainingRule.newRoute()
-        turnHold.reset()
         idleLink()
     }
 
@@ -434,9 +440,8 @@ class NavigationRelay @Inject constructor(
                 updates.trySend(Update.HoldEnd)
             }
         }
-        // No turn distance and no earlier turn (N101): wait up to 3 s for a real one, never send 0 m.
+        // No turn distance and no earlier turn (N101): the arrow goes now with the metres blank, never 0 m.
         val turnUnknown = !maneuver.distanceKnown()
-        if (!turnHold.mayShow(!turnUnknown, SystemClock.elapsedRealtime())) { holdFrame(); return }
         // Nothing real yet at route start: wait up to 3 s for the first figure, then send with FF x5.
         val remaining = remainingRule.frame(SystemClock.elapsedRealtime()) ?: run { holdFrame(); return }
         val clock = etaClocks.get(maneuver, System.currentTimeMillis())
@@ -465,7 +470,7 @@ class NavigationRelay @Inject constructor(
             // never sent, so that slot showed the turn distance instead - which
             // is what the rider spotted on 19 August.
             remainingMetres = remaining,
-            // Still unknown after the hold: blank field. shortcut: FF x5 cannot be written in this
+            // Unknown: blank field. shortcut: FF x5 cannot be written in this
             // field without a ProtocolEngine change (rcx-protocol); spaces are unverified on the cluster.
             distanceText = if (turnUnknown) "     " else null,
         )
@@ -657,22 +662,12 @@ internal class RemainingRule(metresBetween: (GpsCountdown.Fix, GpsCountdown.Fix)
 /**
  * Keep the old turn when the new post has no (or a 0 m) distance, is not arrival, and the old one had metres.
  * Never when the new post names a turn of its own ([freshHasTurn], from its text or arrow): a distance-less
- * "Turn left" is shown as itself (held, then sent with the distance blank), not swapped for the old turn.
- * Only a post that says no direction at all ("Head toward X") keeps it.
+ * "Turn left" is shown as itself (sent at once with the distance blank), not swapped for the old turn.
+ * A post that says no direction at all ("Head toward X") keeps it, and so does the same turn again
+ * ([freshSameTurn]): Android 16 Maps drops the metres when the rider stops at a signal.
  */
-internal fun keepsTurnRule(prevMetres: Int, freshMetres: Int, freshKnown: Boolean, freshArrival: Boolean, freshHasTurn: Boolean = false) =
-    (!freshKnown || freshMetres == 0) && !freshArrival && prevMetres > 0 && !freshHasTurn
-
-/** A frame with an unknown turn distance may wait [HOLD_MS], then goes out with the field blank. */
-internal class UnknownTurnHold {
-    private var since = -1L
-    fun reset() { since = -1L }
-    fun mayShow(known: Boolean, nowMs: Long): Boolean {
-        if (known) { since = -1L; return true }
-        if (since < 0) since = nowMs
-        return nowMs - since >= RemainingRule.HOLD_MS
-    }
-}
+internal fun keepsTurnRule(prevMetres: Int, freshMetres: Int, freshKnown: Boolean, freshArrival: Boolean, freshHasTurn: Boolean = false, freshSameTurn: Boolean = false) =
+    (!freshKnown || freshMetres == 0) && !freshArrival && prevMetres > 0 && (!freshHasTurn || freshSameTurn)
 
 /** The previous turn and its distance, with the ETA and remaining distance of the newer post. */
 internal fun carryTurn(prev: NavManeuver, fresh: NavManeuver): NavManeuver = prev.copy(

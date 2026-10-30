@@ -1,7 +1,6 @@
 package com.eshwar.rideconnectx.data.nav
 
 import com.eshwar.rideconnectx.data.repository.RemainingRule
-import com.eshwar.rideconnectx.data.repository.UnknownTurnHold
 import com.eshwar.rideconnectx.data.repository.carryTurn
 import com.eshwar.rideconnectx.data.repository.keepsTurnRule
 import com.eshwar.rideconnectx.domain.ProtocolEngine
@@ -138,15 +137,6 @@ class MoreCoverageTest {
     @Test
     fun `turn keep rule edge cases`() {
         assertTrue(keepsTurnRule(prevMetres = 120, freshMetres = 0, freshKnown = true, freshArrival = false))   // "0 m" repeat
-    }
-
-    @Test
-    fun `unknown turn hold resets with a new route`() {
-        val h = UnknownTurnHold()
-        assertTrue(!h.mayShow(known = false, nowMs = 0))
-        h.reset()
-        assertTrue(!h.mayShow(known = false, nowMs = 2_900))   // the wait starts again
-        assertTrue(h.mayShow(known = false, nowMs = 5_900))
     }
 
     @Test

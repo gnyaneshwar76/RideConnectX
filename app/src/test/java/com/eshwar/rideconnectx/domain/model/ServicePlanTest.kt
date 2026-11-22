@@ -131,6 +131,22 @@ class ServicePlanTest {
         assertEquals(-621, DistanceUnit.MILES.fromKm(-1_000))
     }
 
+    @Test
+    fun `unit follows the phone region until chosen`() {
+        for (c in listOf("US", "GB", "LR", "MM", "us")) assertEquals(DistanceUnit.MILES, DistanceUnit.defaultForRegion(c))
+        for (c in listOf("IN", "DE", "", null)) assertEquals(DistanceUnit.KM, DistanceUnit.defaultForRegion(c))
+    }
+
+    @Test
+    fun `every model gets a ready plan`() {
+        for (f in com.eshwar.rideconnectx.domain.ClusterFamily.entries) {
+            val p = ModelServicePlan.forFamily(f)
+            assertTrue(p.tasks.isNotEmpty() && p.intervalKm > 0 && p.intervalDays > 0)
+        }
+        assertEquals(3_000, ModelServicePlan.forFamily(com.eshwar.rideconnectx.domain.ClusterFamily.ACCESS_LCD).intervalKm)
+        assertEquals(6_000, ModelServicePlan.forFamily(com.eshwar.rideconnectx.domain.ClusterFamily.MOTORCYCLE).intervalKm)
+    }
+
     // ── UpcomingTask ──────────────────────────────────────────────
 
     @Test

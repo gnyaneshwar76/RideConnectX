@@ -121,7 +121,7 @@ val GlassDarkHeavy = GlassTokens(
     highlight = Color(0x4DFFFFFF),      // rgba(255,255,255,0.30)
     specular = Color(0x17FFFFFF),       // rgba(255,255,255,0.09)
     innerGlow = Color(0x17FFFFFF),      // rgba(255,255,255,0.09)
-    fillFloor = 0.40f,
+    fillFloor = 0.45f,
 )
 
 /**
@@ -146,7 +146,7 @@ val GlassDarkLight = GlassTokens(
     highlight = Color(0x75FFFFFF),      // rgba(255,255,255,0.46)
     specular = Color(0x26FFFFFF),       // rgba(255,255,255,0.15)
     innerGlow = Color(0x21FFFFFF),      // rgba(255,255,255,0.13)
-    fillFloor = 0.18f,
+    fillFloor = 0.22f,
 )
 
 /** Back-compat alias - the export keeps `GDK` pointing at the light tier. */
@@ -157,7 +157,7 @@ val GlassLight = GlassTokens(
     blur = 20.dp,
     // N38: 0.30 -> 0.18, but the floor holds it at 0.22 by default: LightText
     // 4.5:1 over a black photo pixel under the lightest photo dim (bg 0.38).
-    fill = Color(0x2EFFFFFF),           // rgba(255,255,255,0.18), was 0.30
+    fill = Color(0x42FFFFFF),           // rgba(255,255,255,0.26); floor 0.26 for the new calm light background
     fillAccent = Color(0x292B7FFF),     // rgba(43,127,255,0.16)
     fillPressed = Color(0x70FFFFFF),    // rgba(255,255,255,0.44)
     fillDisabled = Color(0x14FFFFFF),   // rgba(255,255,255,0.08)
@@ -168,7 +168,7 @@ val GlassLight = GlassTokens(
     highlight = Color(0xB8FFFFFF),      // rgba(255,255,255,0.72)
     specular = Color(0x4DFFFFFF),       // rgba(255,255,255,0.30)
     innerGlow = Color(0x3DFFFFFF),      // rgba(255,255,255,0.24)
-    fillFloor = 0.22f,
+    fillFloor = 0.26f,
 )
 
 /**
@@ -358,9 +358,11 @@ fun GlassLightField(
                     Brush.verticalGradient(
                         // Owner found the photos too bright: a steady dim
                         // over the whole picture, heavier at the header.
-                        0f to c.bg.copy(alpha = 0.70f),
-                        0.3f to c.bg.copy(alpha = 0.38f),
-                        0.65f to c.bg.copy(alpha = 0.55f),
+                        // No blur below Android 12, so the photo is sharp: dim it
+                        // hard so text stays calm, like the other screens.
+                        0f to c.bg.copy(alpha = if (canBlur) 0.70f else 0.90f),
+                        0.3f to c.bg.copy(alpha = if (canBlur) 0.38f else 0.84f),
+                        0.65f to c.bg.copy(alpha = if (canBlur) 0.55f else 0.88f),
                         1f to c.bg,
                     )
                 )
@@ -463,6 +465,35 @@ fun Modifier.glassSheen(g: GlassTokens, pressed: Boolean = false): Modifier = dr
 }
 
 /**
+ * Colour of the thin light line along the top of glass: low-alpha white in dark,
+ * a soft blue (white would vanish on a pale card) in light. Follows the glass slider, but
+ * stays calm at both ends. Pure, so it is unit-tested.
+ */
+fun edgeLightColor(dark: Boolean, intensity: Float): Color =
+    if (dark) Color.White.copy(alpha = (0.40f).byIntensity(intensity).coerceIn(0.25f, 0.55f))
+    else Color(0xFF7FA8F0).copy(alpha = (0.55f).byIntensity(intensity).coerceIn(0.35f, 0.70f))
+
+/**
+ * A 1 dp light line along the top edge, brighter in the middle and fading out
+ * toward the corners. Static: drawn once into the cached layer, nothing per
+ * frame. Skipped where the surface is the opaque fallback ([canBlur] false) -
+ * there the plain rim border stays. Put it after [glassSurface] so it sits on
+ * the fill and the rim.
+ */
+@Composable
+fun Modifier.topEdgeLight(): Modifier {
+    if (!canBlur) return this
+    val color = edgeLightColor(Rcx.colors.isDark, LocalGlassIntensity.current)
+    return drawBehind {
+        val h = 1.dp.toPx()
+        drawRect(
+            Brush.horizontalGradient(0f to Color.Transparent, 0.2f to color, 0.8f to color, 1f to Color.Transparent),
+            size = androidx.compose.ui.geometry.Size(size.width, h),
+        )
+    }
+}
+
+/**
  * A card background that follows the rider's style: flat card + hairline in
  * Flat, frosted glass with lit rim and gloss in Glass.
  */
@@ -470,7 +501,7 @@ fun Modifier.glassSheen(g: GlassTokens, pressed: Boolean = false): Modifier = dr
 fun Modifier.cardSurface(shape: Shape): Modifier =
     if (LocalStyleMode.current == StyleMode.GLASS) {
         val g = glassTokens(GlassTier.LIGHT)
-        this.glassSurface(shape).glassSheen(g)
+        this.glassSurface(shape).glassSheen(g).topEdgeLight()
     } else {
         val c = Rcx.colors
         this.background(c.card).border(1.dp, c.border, shape)
@@ -516,7 +547,7 @@ fun Modifier.cardFill(): Modifier =
         val k = LocalGlassIntensity.current
         val fill = g.fill.copy(alpha = g.fill.alpha.byIntensity(k).coerceIn(g.fillFloor, 0.9f))
         val base = if (Rcx.colors.isDark) g.fallback else Color.White
-        this.background(fill).glassSheen(g)
+        this.background(fill).glassSheen(g).topEdgeLight()
     } else {
         this.background(Rcx.colors.card)
     }

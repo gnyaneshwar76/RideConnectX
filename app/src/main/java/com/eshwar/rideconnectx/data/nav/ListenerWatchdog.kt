@@ -26,6 +26,11 @@ object ListenerWatchdog {
     val connected: StateFlow<Boolean> = _connected
 
     @Volatile private var lastRebindAt = 0L
+    /** When the listener was first seen down (0 = up or unknown), for the N s log lines. */
+    @Volatile private var downSince = 0L
+
+    /** Whole seconds down; 0 if not down. */
+    fun downSeconds(downSince: Long, now: Long): Long = if (downSince == 0L) 0L else maxOf(0L, (now - downSince) / 1000)
 
     private val handler by lazy { Handler(Looper.getMainLooper()) }
     private var watch: Runnable? = null
@@ -36,11 +41,15 @@ object ListenerWatchdog {
 
     fun onConnected(ctx: Context) {
         _connected.value = true
+        val n = downSeconds(downSince, System.currentTimeMillis())
+        if (downSince != 0L) log(ctx, "LISTENER reconnected after $n s")
+        downSince = 0L
         log(ctx, "LISTENER connected")
     }
 
     fun onDisconnected(ctx: Context) {
         _connected.value = false
+        if (downSince == 0L) downSince = System.currentTimeMillis()
         log(ctx, "LISTENER disconnected")
     }
 
@@ -48,7 +57,9 @@ object ListenerWatchdog {
     fun check(ctx: Context, now: Long = System.currentTimeMillis()) {
         val app = ctx.applicationContext
         if (_connected.value || !shouldRebind(app.hasNotificationAccess(), false, lastRebindAt, now)) return
-        lastRebindAt = now
+        if (downSince == 0L) downSince = now
+        lastRebindAt = now // also paces the log line: once per MIN_GAP_MS
+        log(app, "LISTENER not connected for ${downSeconds(downSince, now)} s while link is up")
         log(app, "LISTENER rebind requested")
         runCatching {
             NotificationListenerService.requestRebind(ComponentName(app, MapsNotificationListener::class.java))

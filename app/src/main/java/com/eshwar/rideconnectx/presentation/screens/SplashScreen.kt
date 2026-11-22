@@ -165,7 +165,7 @@ fun SplashScreen(onFinished: () -> Unit) {
             Text(
                 text = "SMART NAVIGATION",
                 style = RcxType.MonoTiny.copy(fontSize = 10.sp, letterSpacing = 2.5.sp),
-                color = c.muted.copy(alpha = 0.44f),
+                color = c.text.copy(alpha = 0.72f),
                 modifier = Modifier.alpha(textAlpha),
             )
         }
@@ -175,7 +175,7 @@ fun SplashScreen(onFinished: () -> Unit) {
             // the About screen disagreed about which app this is.
             text = "v${BuildConfig.VERSION_NAME}",
             style = RcxType.Mono.copy(fontSize = 10.sp),
-            color = c.muted.copy(alpha = 0.22f),
+            color = c.muted,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 // Sits above the real gesture bar on any device.

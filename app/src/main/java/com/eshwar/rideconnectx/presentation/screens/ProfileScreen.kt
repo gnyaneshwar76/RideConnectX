@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import com.eshwar.rideconnectx.presentation.theme.sheetEnter
 import com.eshwar.rideconnectx.presentation.theme.innerFill
 import com.eshwar.rideconnectx.presentation.theme.sheetContainerColor
@@ -98,6 +100,7 @@ import com.eshwar.rideconnectx.presentation.components.SettingsGroup
 import com.eshwar.rideconnectx.presentation.components.SettingsLinkRow
 import com.eshwar.rideconnectx.presentation.components.VehicleStage
 import com.eshwar.rideconnectx.presentation.theme.Rcx
+import com.eshwar.rideconnectx.presentation.theme.pressSquash
 import com.eshwar.rideconnectx.presentation.theme.RcxType
 import com.eshwar.rideconnectx.presentation.viewmodel.ProfileViewModel
 import kotlinx.coroutines.Dispatchers
@@ -157,8 +160,8 @@ fun ProfileScreen(
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
@@ -502,11 +505,14 @@ private fun ProfileCard(
                     version = photoVersion,
                     modifier = Modifier.clickable(onClick = onViewPhoto),
                 )
+                val badgeSrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                 Box(
                     Modifier
+                        // Press feedback at once; the sheet itself can take a moment to open.
+                        .pressSquash(badgeSrc, 0.85f)
                         .size(48.dp)
                         .clip(CircleShape)
-                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onEditPhoto),
+                        .clickable(badgeSrc, androidx.compose.foundation.LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, onClick = onEditPhoto),
                     contentAlignment = Alignment.Center,
                 ) {
                   Box(Modifier.size(30.dp).clip(CircleShape).background(c.blue), contentAlignment = Alignment.Center) {
@@ -728,7 +734,7 @@ private fun PhotoViewer(
             Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .safeDrawingCentred()
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -961,7 +967,8 @@ private fun ProfileField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        placeholder = { Text(placeholder, style = RcxType.Body.copy(fontSize = 14.sp), color = c.muted) },
+        // A floating label: it sits in the box while empty and moves to the border when filled, so the field never loses its name.
+        label = { Text(placeholder, style = RcxType.BodySmall.copy(fontSize = 13.sp), color = c.muted, maxLines = 1) },
         singleLine = true,
         shape = RoundedCornerShape(14.dp),
         textStyle = RcxType.Body.copy(fontSize = 15.sp, color = c.text),

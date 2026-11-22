@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import com.eshwar.rideconnectx.presentation.theme.sheetEnter
 import com.eshwar.rideconnectx.presentation.theme.edgeShrink
 import androidx.compose.ui.draw.drawBehind
@@ -156,8 +158,8 @@ fun ServiceScreen(
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
@@ -580,7 +582,7 @@ private fun UpcomingTasksCard(
                 Icon(
                     Icons.Filled.Edit,
                     stringResource(R.string.service_edit_task_cd, item.label),
-                    Modifier.size(14.dp), tint = c.muted.copy(alpha = 0.4f),
+                    Modifier.size(16.dp), tint = c.muted,
                 )
             }
         }

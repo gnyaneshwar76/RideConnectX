@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -87,9 +89,9 @@ fun GuestProfileScreen(
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .safeDrawingCentred()
                 .imePadding()
-                .widthIn(max = 600.dp)
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {

@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import com.eshwar.rideconnectx.presentation.theme.edgeShrink
 import com.eshwar.rideconnectx.presentation.theme.floaty
 import com.eshwar.rideconnectx.presentation.theme.ScreenBackdrop
@@ -123,8 +125,8 @@ fun NotificationsScreen(
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
@@ -278,9 +280,11 @@ private fun NotificationRow(
             }
             Spacer(Modifier.height(2.dp))
             Text(
-                notification.body,
+                notification.body, // a short preview, never the full text (cut by rcx-nav)
                 style = RcxType.BodySmall.copy(fontSize = 12.sp),
                 color = c.muted,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(4.dp))
             Text(

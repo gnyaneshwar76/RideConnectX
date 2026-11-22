@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import com.eshwar.rideconnectx.presentation.theme.rememberAmbientTransition
 import com.eshwar.rideconnectx.presentation.theme.animateAmbient
 import com.eshwar.rideconnectx.presentation.theme.sheetEnter
@@ -303,8 +305,8 @@ fun SafetyScreen(
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {

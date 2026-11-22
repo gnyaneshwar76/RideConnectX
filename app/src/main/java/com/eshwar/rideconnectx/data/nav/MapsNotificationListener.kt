@@ -53,19 +53,6 @@ class MapsNotificationListener : NotificationListenerService() {
             "com.google.android.apps.mapslite",
         )
 
-        /**
-         * Apps whose notifications light the cluster's message lamp.
-         *
-         * The cluster has one indicator, not a per-app inbox, so this only has
-         * to answer "is there something waiting". SMS is included because the
-         * official app treats WhatsApp and SMS the same way.
-         */
-        val MESSAGE_PACKAGES = setOf(
-            "com.whatsapp",
-            "com.whatsapp.w4b",
-            "com.google.android.apps.messaging",
-        )
-
         /** Notification categories that mean a call rather than a message. */
         private val CALL_CATEGORIES = setOf(
             Notification.CATEGORY_CALL,
@@ -129,6 +116,34 @@ class MapsNotificationListener : NotificationListenerService() {
     private val alertDedup = AlertDedup()
     private val missedTracker = MissedCallTracker()
     private val pendingCallClear = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
+
+    /** The rider's per-app switches (package -> on/off), kept fresh for the main-thread alert path. */
+    @Volatile private var switches: Map<String, Boolean> = emptyMap()
+    private val seenThisRun = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    private val navEntry: NavHistoryEntryPoint
+        get() = EntryPointAccessors.fromApplication(applicationContext, NavHistoryEntryPoint::class.java)
+
+    override fun onCreate() {
+        super.onCreate()
+        scope.launch { runCatching { navEntry.appSettings().appSwitches.collect { switches = it } } }
+    }
+
+    private fun defaultSms(): String? =
+        runCatching { android.provider.Telephony.Sms.getDefaultSmsPackage(this) }.getOrNull()
+
+    private fun tierOf(sbn: StatusBarNotification, trustedCall: Boolean): AppTier =
+        AppTiers.tierOf(sbn.packageName, trustedCall, defaultSms(), sbn.notification?.category) {
+            isSystemPackage(sbn.packageName)
+        }
+
+    /** Settings lists the Important/Medium apps that posted; one DataStore write per app per run. */
+    private fun markSeen(pkg: String) {
+        if (seenThisRun.add(pkg)) scope.launch { runCatching { navEntry.appSettings().addSeenPackage(pkg) } }
+    }
+
+    /** Names in the ride-log file only on debug builds; release may record a ride log too. */
+    private fun shown(name: String) = if (com.eshwar.rideconnectx.BuildConfig.DEBUG) name else "(hidden)"
 
     private fun callKey(sbn: StatusBarNotification) =
         "call|${sbn.packageName}|${callTitle(sbn)}"
@@ -397,15 +412,21 @@ class MapsNotificationListener : NotificationListenerService() {
      * Lights the cluster's message or missed-call lamp for a non-Maps
      * notification.
      *
-     * Only WhatsApp/SMS and call notifications count. Ongoing notifications are
-     * skipped — a music player or a running download is not something the rider
-     * needs flagged mid-ride, and it would keep the lamp permanently lit.
+     * Which apps count is [AppTiers]: an ignored app is dropped first, before
+     * any log, parse or store. Ongoing notifications are skipped for messages —
+     * a music player or a running download would keep the lamp permanently lit.
      */
     private fun relayClusterAlert(sbn: StatusBarNotification) {
         val category = sbn.notification?.category
         val isCall = category in CALL_CATEGORIES
+        // Asked once per post: it is two system lookups, on the main thread, for every call notification.
+        val trustedCall = isCall && isTrustedCallSource(sbn.packageName)
+        val tier = tierOf(sbn, trustedCall)
+        if (tier == AppTier.IGNORED) return
+        markSeen(sbn.packageName)
+        val toCluster = AppTiers.route(tier, switches[sbn.packageName]).cluster
 
-        // Every non-Maps notification is logged at verbose, because when a lamp
+        // Every Important/Medium notification is logged at verbose, because when a lamp
         // does not light the first question is always 'did the app even see it',
         // and without this there is no way to tell a missed notification from a
         // rejected one. The rider hit exactly that on 18 August.
@@ -424,14 +445,23 @@ class MapsNotificationListener : NotificationListenerService() {
         // never lit during the 18 August test.
         // The 30 Sep ride: a friend's call never showed on the cluster, and
         // nothing recorded whether the app even saw it.
-        // Asked once per post: it is two system lookups, on the main thread, for every call notification.
-        val trustedCall = isCall && isTrustedCallSource(sbn.packageName)
         if (isCall && !trustedCall) {
             logAlert("CALL notification from ${sbn.packageName} IGNORED (not a trusted dialer)")
         }
         when {
             trustedCall -> {
                 val who = callTitle(sbn)
+                logAlert(
+                    "CALL POST pkg=${sbn.packageName} id=${sbn.id} cat=$category type=${sbn.notification.extras?.getInt("android.callType", 0) ?: 0} " +
+                        "fsi=${sbn.notification.fullScreenIntent != null} ongoing=${sbn.isOngoing} flags=${sbn.notification.flags}",
+                )
+                if (!toCluster) {
+                    // The rider switched this app off for the cluster: history only.
+                    if (category == Notification.CATEGORY_MISSED_CALL &&
+                        missedTracker.onMissedPost(callKey(sbn), System.currentTimeMillis())
+                    ) recordHistory(NotificationKind.CALL, who, "Missed call")
+                    return
+                }
                 if (category == Notification.CATEGORY_MISSED_CALL) {
                     // Not ringing any more: a stale ring entry would repeat 0x32 forever.
                     ClusterAlerts.clearRinging(who)
@@ -463,7 +493,7 @@ class MapsNotificationListener : NotificationListenerService() {
                 pendingCallClear.remove(callKey(sbn))?.cancel()
                 if (!alertDedup.shouldSend(callKey(sbn), "$category|$who", System.currentTimeMillis(), isCall = true)) return
                 Log.d(TAG, "Call from ${sbn.packageName} who='$who' - flagging cluster")
-                logAlert("CALL from $who (${sbn.packageName}) - seen (see ALERT WRITTEN or ALERT DROPPED for delivery)")
+                logAlert("CALL from ${shown(who)} (${sbn.packageName}) - seen (see ALERT WRITTEN or ALERT DROPPED for delivery)")
                 ClusterAlerts.onCallRinging(who, sbn.packageName.startsWith("com.whatsapp"))
                 ClusterAlerts.onMissedCall(title = who)
                 recordHistory(NotificationKind.CALL, who, "Call")
@@ -471,18 +501,27 @@ class MapsNotificationListener : NotificationListenerService() {
             sbn.isOngoing -> return
             // WhatsApp and Messages post a summary beside each chat: counting both doubled the unread count.
             isGroupSummary(sbn.notification?.flags ?: 0) -> return
-            sbn.packageName in MESSAGE_PACKAGES -> {
+            // A call-category post from an app not trusted for calls is not a message either.
+            isCall -> return
+            else -> {
                 val extras = sbn.notification.extras
-                val who = cleanStoredText(extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty())
-                val body = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
-                // 'W' WhatsApp, 'N' SMS - the identifiers the official app uses
+                val rawWho = cleanStoredText(extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty())
+                val rawBody = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
+                // One-time codes and bank texts: sender name only, the body goes nowhere (history, log, cluster).
+                val view = AppTiers.messageView(rawWho, rawBody)
+                val who = view.who
+                val route = AppTiers.route(tier, switches[sbn.packageName])
+                if (!route.store) return
+                // Hash only: the dedup map must not hold a code's text either.
+                if (!alertDedup.shouldSend(sbn.key, "$rawWho|${rawBody.hashCode()}", System.currentTimeMillis(), isCall = false)) return
+                recordHistory(NotificationKind.MESSAGE, who, view.historyBody)
+                if (!route.cluster) return
+                // 'W' WhatsApp, 'N' SMS and everything else - the identifiers the official app uses
                 // in the 0x06 packet.
                 val app = if (sbn.packageName.startsWith("com.whatsapp")) 'W' else 'N'
-                if (!alertDedup.shouldSend(sbn.key, "$who|$body", System.currentTimeMillis(), isCall = false)) return
                 Log.d(TAG, "Message from ${sbn.packageName} who='$who' - flagging cluster")
-                logAlert("MESSAGE from $who (${sbn.packageName}) - seen (see ALERT WRITTEN or ALERT DROPPED for delivery)")
-                ClusterAlerts.onNotification(appIdentifier = app, title = who, text = body)
-                recordHistory(NotificationKind.MESSAGE, who, "New message")
+                logAlert("MESSAGE from ${shown(who)} (${sbn.packageName}) - seen (see ALERT WRITTEN or ALERT DROPPED for delivery)")
+                ClusterAlerts.onNotification(appIdentifier = app, title = who, text = view.clusterText)
             }
         }
     }
@@ -513,18 +552,25 @@ class MapsNotificationListener : NotificationListenerService() {
         // claim `com.android.dialer` on a phone that does not already ship it.
         if (pkg in TELECOM_PACKAGES && isSystemPackage(pkg)) return true
 
-        if (pkg in VOIP_CALL_PACKAGES || pkg in MESSAGE_PACKAGES) return true
+        if (pkg in VOIP_CALL_PACKAGES || pkg in AppTiers.IMPORTANT_APPS) return true
 
         Log.d(TAG, "Ignoring call-category notification from untrusted pkg=$pkg")
         return false
     }
 
-    /** One row on the Notifications page. Sender and a fixed body only, never the message text (privacy). */
+    /** A non-ongoing, non-call message notification whose app the cluster shows (tier + switch). */
+    private fun countsOnCluster(s: StatusBarNotification): Boolean {
+        if (s.isOngoing || s.notification?.category in CALL_CATEGORIES) return false
+        // Codes and bank texts count too: they reach the cluster as the sender name.
+        return AppTiers.route(tierOf(s, trustedCall = false), switches[s.packageName]).cluster
+    }
+
+    /** One row on the Notifications page: sender and a short preview ([AppTiers.preview]) only, never the full text. */
     private fun recordHistory(kind: NotificationKind, who: String, body: String) {
         scope.launch {
             runCatching {
                 EntryPointAccessors.fromApplication(applicationContext, NavHistoryEntryPoint::class.java)
-                    .notificationRepository().notify(kind, cleanStoredText(who).ifBlank { "Unknown" }, cleanStoredText(body))
+                    .notificationRepository().notify(kind, AppTiers.sender(who).ifBlank { "Unknown" }, cleanStoredText(body))
             }
         }
     }
@@ -593,6 +639,7 @@ class MapsNotificationListener : NotificationListenerService() {
                 // Wait: a cancel + re-post of a still-ringing call must not blank the lamp.
                 val k = callKey(sbn)
                 val who = callTitle(sbn)
+                logAlert("CALL REMOVED pkg=${sbn.packageName} id=${sbn.id} type=${sbn.notification?.extras?.getInt("android.callType", 0) ?: 0}")
                 val whatsApp = sbn.packageName.startsWith("com.whatsapp")
                 val endedAt = System.currentTimeMillis()
                 alertDedup.forget(k)
@@ -614,11 +661,11 @@ class MapsNotificationListener : NotificationListenerService() {
             } else if (category == Notification.CATEGORY_MISSED_CALL && isTrustedCallSource(sbn.packageName)) {
                 // Official m9116f: missed-call notification gone -> count 0 and a 0x34 reset.
                 ClusterAlerts.onMissedNotificationRemoved()
-            } else if (sbn.packageName in MESSAGE_PACKAGES && !sbn.isOngoing) {
+            } else if (countsOnCluster(sbn)) {
                 // Official m9120l: recount the phone's active message notifications.
                 val wa = sbn.packageName.startsWith("com.whatsapp")
                 val active = runCatching { activeNotifications }.getOrNull().orEmpty()
-                    .filter { it.key != sbn.key && it.packageName in MESSAGE_PACKAGES && !it.isOngoing && !isGroupSummary(it.notification?.flags ?: 0) }
+                    .filter { it.key != sbn.key && !isGroupSummary(it.notification?.flags ?: 0) && countsOnCluster(it) }
                 val own = active.count { it.packageName.startsWith("com.whatsapp") == wa }
                 ClusterAlerts.onMessagesRecounted(if (wa) 'W' else 'N', own, active.size)
             }
@@ -963,6 +1010,7 @@ internal fun isGroupSummary(flags: Int): Boolean = flags and Notification.FLAG_G
 interface NavHistoryEntryPoint {
     fun notificationRepository(): com.eshwar.rideconnectx.data.repository.NotificationRepository
     fun mapsOffTracker(): com.eshwar.rideconnectx.data.local.MapsOffTracker
+    fun appSettings(): com.eshwar.rideconnectx.data.local.AppSettingsStore
 }
 
 /**

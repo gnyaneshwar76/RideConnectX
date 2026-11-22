@@ -93,5 +93,39 @@ data class UpcomingTask(
     val isOverdue: Boolean get() = remainingKm != null && remainingKm <= 0
 }
 
+/** A ready service plan for one kind of vehicle, so the rider types nothing. */
+data class ModelServicePlan(val intervalKm: Int, val intervalDays: Int, val tasks: List<Pair<String, Int>>) {
+    companion object {
+        private val SCOOTER = ModelServicePlan(
+            3_000, 90,
+            listOf(
+                "Engine Oil" to 3_000, "Air Filter" to 6_000, "Brake Inspection" to 3_000,
+                "Tyre Pressure & Tread" to 3_000, "Spark Plug" to 6_000, "Drive Belt" to 12_000,
+            ),
+        )
+
+        // shortcut: motorcycle and electric intervals are typical values, not checked against the owner's manual; confirm before relying on them.
+        private val MOTORCYCLE = ModelServicePlan(
+            6_000, 180,
+            listOf(
+                "Engine Oil" to 6_000, "Air Filter" to 12_000, "Brake Inspection" to 6_000,
+                "Tyre Pressure & Tread" to 6_000, "Spark Plug" to 12_000, "Chain Clean & Lube" to 1_000,
+            ),
+        )
+
+        private val ELECTRIC = ModelServicePlan(
+            6_000, 180,
+            listOf("Brake Inspection" to 6_000, "Tyre Pressure & Tread" to 3_000, "Battery & Charger Check" to 6_000),
+        )
+
+        /** Scooters (also TFT petrol, and unknown names) get the Access plan, the maker's own schedule. */
+        fun forFamily(family: com.eshwar.rideconnectx.domain.ClusterFamily): ModelServicePlan = when (family) {
+            com.eshwar.rideconnectx.domain.ClusterFamily.MOTORCYCLE -> MOTORCYCLE
+            com.eshwar.rideconnectx.domain.ClusterFamily.ELECTRIC -> ELECTRIC
+            else -> SCOOTER
+        }
+    }
+}
+
 /** A task is named, not numbered: "3000" in the name field was a distance typed in the wrong place. */
 fun isValidTaskName(label: String): Boolean = FieldRules.isValidTaskName(label)

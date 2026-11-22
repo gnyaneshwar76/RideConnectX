@@ -61,6 +61,9 @@ class AppSettingsStore @Inject constructor(
         val RIDE_NOTIFICATIONS = booleanPreferencesKey("notify_rides")
         val CONNECTION_ALERTS = booleanPreferencesKey("notify_connection")
 
+        const val APP_SWITCH_PREFIX = "notif_app_"
+        val SEEN_PACKAGES = androidx.datastore.preferences.core.stringSetPreferencesKey("notif_seen_packages")
+
         // Appearance
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val ACCENT = stringPreferencesKey("accent_color")
@@ -72,10 +75,12 @@ class AppSettingsStore @Inject constructor(
 
     val settings: Flow<AppSettings> = context.appSettings.data.map { p ->
         AppSettings(
-            distanceUnit = p[UNITS].toEnum(DistanceUnit.KM),
+            // Never chosen: follow the phone region. A saved choice wins.
+            distanceUnit = p[UNITS].toEnum(DistanceUnit.defaultForRegion(java.util.Locale.getDefault().country)),
             surfaceStyle = p[SURFACE_STYLE].toEnum(SurfaceStyle.FLAT),
-            autoStartNavigation = p[AUTO_START_NAV] ?: true,
-            autoConnect = p[AUTO_CONNECT] ?: true,
+            // Always on, whatever was saved before (switches removed).
+            autoStartNavigation = true,
+            autoConnect = true,
             rideNotifications = p[RIDE_NOTIFICATIONS] ?: true,
             connectionAlerts = p[CONNECTION_ALERTS] ?: true,
             themeMode = p[THEME_MODE].toEnum(ThemeMode.SYSTEM),
@@ -140,6 +145,25 @@ class AppSettingsStore @Inject constructor(
         put(GLASS_INTENSITY, value.coerceIn(0f, 1f))
         draggingIntensity.value = null
     }
+    /**
+     * Per-app notification switch (package -> on/off). Missing = the tier default
+     * (Important ON, Medium OFF), which the caller applies. Package names only.
+     */
+    val appSwitches: Flow<Map<String, Boolean>> = context.appSettings.data.map { p ->
+        p.asMap().entries.mapNotNull { (k, v) ->
+            if (k.name.startsWith(APP_SWITCH_PREFIX) && v is Boolean) k.name.removePrefix(APP_SWITCH_PREFIX) to v else null
+        }.toMap()
+    }
+
+    suspend fun setAppSwitch(pkg: String, on: Boolean) = put(booleanPreferencesKey(APP_SWITCH_PREFIX + pkg), on)
+
+    /** Important/Medium packages that have posted. Package names only; ignored apps are never added. */
+    val seenPackages: Flow<Set<String>> = context.appSettings.data.map { it[SEEN_PACKAGES].orEmpty() }
+
+    suspend fun addSeenPackage(pkg: String) {
+        context.appSettings.edit { it[SEEN_PACKAGES] = it[SEEN_PACKAGES].orEmpty() + pkg }
+    }
+
     suspend fun setAutoStartNavigation(on: Boolean) = put(AUTO_START_NAV, on)
 
     suspend fun setAutoConnect(on: Boolean) = put(AUTO_CONNECT, on)

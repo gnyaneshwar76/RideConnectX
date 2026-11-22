@@ -9,10 +9,10 @@ import org.junit.Test
 /** N48: soft colours, and 4.5:1 text on every button in both themes. */
 class ColourMathTest {
 
-    private val darkBg = 0xFF070D1BL
-    private val lightBg = 0xFFEEF2FFL
-    private val darkText = 0xFFE4ECFFL
-    private val lightText = 0xFF0A1628L
+    private val darkBg = 0xFF121315L
+    private val lightBg = 0xFFF5F6F8L
+    private val darkText = 0xFFE8E9EBL
+    private val lightText = 0xFF1C1E21L
 
     @Test
     fun softBlendsTowardSlateLikeThePreview() {
@@ -60,7 +60,7 @@ class ColourMathTest {
     @Test
     fun accentButtonsWithoutAMixAreReadable() {
         AccentColor.entries.forEach { a ->
-            listOf(a.darkArgb, a.lightArgb).forEach { argb ->
+            listOf(a.argb).forEach { argb ->
                 // CEO 10 Oct: the true accent, flat, as RcxTheme builds it; never darkened.
                 val fill = readableFill(listOf(argb, argb))
                 assertTrue("${a.label} ${fill.worstContrast}", fill.worstContrast >= MIN_CONTRAST)
@@ -68,9 +68,9 @@ class ColourMathTest {
                 println("%-8s %08X %s %.2f".format(a.label, argb, if (fill.text == BLACK) "black" else "white", fill.worstContrast))
             }
         }
-        // Light accents take black text.
-        assertEquals(BLACK, readableFill(listOf(AccentColor.AMBER.darkArgb, AccentColor.AMBER.darkArgb)).text)
-        assertEquals(BLACK, readableFill(listOf(AccentColor.LIME.darkArgb, AccentColor.LIME.darkArgb)).text)
+        // Teal reads better with black text, indigo with white.
+        assertEquals(BLACK, readableFill(listOf(AccentColor.SOFT_TEAL.argb, AccentColor.SOFT_TEAL.argb)).text)
+        assertEquals(WHITE, readableFill(listOf(AccentColor.SOFT_INDIGO.argb, AccentColor.SOFT_INDIGO.argb)).text)
     }
 
     @Test
@@ -88,8 +88,8 @@ class ColourMathTest {
         // mix (soft) and every accent of each theme.
         val mixes = ColourMix.entries.flatMap { m -> m.colours.map { soft(it) } }
         val cases = listOf(
-            Triple(true, darkBg, darkText) to mixes + AccentColor.entries.map { it.darkArgb },
-            Triple(false, lightBg, lightText) to mixes + AccentColor.entries.map { it.lightArgb },
+            Triple(true, darkBg, darkText) to mixes + AccentColor.entries.map { it.argb },
+            Triple(false, lightBg, lightText) to mixes + AccentColor.entries.map { it.argb },
         )
         cases.forEach { (theme, pools) ->
             val (dark, bg, text) = theme
@@ -107,21 +107,21 @@ class ColourMathTest {
     fun glassFloorsKeepTextReadable() {
         // Heavy: white photo pixel under the lightest photo dim (bg at 0.38).
         val photoBright = over(darkBg, 0.38f, WHITE)
-        assertTrue(contrast(darkText, over(darkBg, 0.40f, photoBright)) >= MIN_CONTRAST)
+        assertTrue(contrast(darkText, over(darkBg, 0.45f, photoBright)) >= MIN_CONTRAST)
         // Light tier: two overlapping light-field pools of the brightest accent.
-        listOf(0xFFFFB547L, 0xFF9BE564L, 0xFF00D4FFL, 0xFFE4ECFFL).forEach { pool ->
-            assertTrue(contrast(darkText, over(darkBg, 0.18f, over(pool, 0.5f, darkBg))) >= MIN_CONTRAST)
+        listOf(0xFFFFB547L, 0xFF9BE564L, 0xFF00D4FFL, 0xFFE8E9EBL).forEach { pool ->
+            assertTrue(contrast(darkText, over(darkBg, 0.22f, over(pool, 0.5f, darkBg))) >= MIN_CONTRAST)
         }
         // Light theme: black photo pixel under the lightest dim.
         val photoDark = over(lightBg, 0.38f, BLACK)
-        assertTrue(contrast(lightText, over(WHITE, 0.22f, photoDark)) >= MIN_CONTRAST)
+        assertTrue(contrast(lightText, over(WHITE, 0.26f, photoDark)) >= MIN_CONTRAST)
     }
 
     @Test
     fun buttonTextIsTheBetterOfBlackAndWhiteOnTheRealFillInBothThemes() {
         // Mirrors RcxTheme: no mix = flat accent of THAT theme; mix = soft stops.
         val fills = listOf(true, false).flatMap { dark ->
-            AccentColor.entries.map { a -> "${a.label} dark=$dark" to (if (dark) a.darkArgb else a.lightArgb).let { listOf(it, it) } } +
+            AccentColor.entries.map { a -> "${a.label} dark=$dark" to a.argb.let { listOf(it, it) } } +
                 ColourMix.entries.map { m -> "${m.label} dark=$dark" to m.colours.map { soft(it) } }
         }
         fills.forEach { (name, stops) ->
@@ -136,7 +136,7 @@ class ColourMathTest {
     @Test
     fun mutedTextReadsOnBackgroundAndCard() {
         // Notification time uses readableOn(muted, card): plain dark muted on card is 4.48.
-        listOf(0xFF6B7FA0L to listOf(darkBg, 0xFF0D1526L), 0xFF5B6E88L to listOf(lightBg, WHITE)).forEach { (m, bgs) ->
+        listOf(0xFF9AA0A8L to listOf(darkBg, 0xFF1C1E21L), 0xFF6B7078L to listOf(lightBg, WHITE)).forEach { (m, bgs) ->
             bgs.forEach { bg -> val t = readableOn(m, bg); assertTrue("muted %08X on %08X %.2f".format(m, bg, contrast(t, bg)), contrast(t, bg) >= MIN_CONTRAST) }
         }
     }

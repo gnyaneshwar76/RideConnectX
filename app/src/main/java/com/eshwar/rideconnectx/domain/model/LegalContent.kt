@@ -129,7 +129,7 @@ object LegalContent {
     val PRIVACY = listOf(
         LegalSection(
             "1. Introduction",
-            "RideConnectX shows turn-by-turn directions, alerts and your name on your scooter's instrument cluster over Bluetooth. Last updated 17 October 2026.",
+            "RideConnectX shows turn-by-turn directions, alerts and your name on your scooter's instrument cluster over Bluetooth. Last updated 22 November 2026.",
             tail = "This policy explains what the app collects, where it goes, and what stays on your phone. Nothing is sold, and nothing is shared with advertisers. The app has no analytics, no advertising and no advertising identifier. The Bluetooth link to the cluster is not encrypted: caller and sender names cross the air in plain text. Report a problem opens your mail app with a pre-filled message; nothing is sent unless you press send.",
         ),
         LegalSection(
@@ -137,8 +137,8 @@ object LegalContent {
             "These are stored on your phone only and are tied to the account that created them:",
             bullets = listOf(
                 "Emergency contacts you add",
-                "Service and refuelling records",
-                "Notification history on the Notifications page (caller or sender name and kind; never the message text). The same names are shown on the cluster",
+                "Service records",
+                "Notification history on the Notifications page, today only, deleted at midnight: caller or sender name and kind, and for messages a preview of at most 60 characters. For one-time-code and bank or UPI texts only the sender name and the label \"Message\" are kept, never the text. The same names are shown on the cluster",
                 "Ride log, off by default; only if you switch it on in Settings (Ride testing): Maps instructions and destination text, caller or sender names (never message text) and route times, never uploaded; delete it with Clear ride log",
                 "Paired scooter address and name",
                 "The email address you asked a sign-in link for, the time it was sent, and the times of your last link requests (to enforce a 10-minute link and 5 requests a day)",
@@ -166,7 +166,7 @@ object LegalContent {
             "Each permission is used only for the feature named:",
             bullets = listOf(
                 "Bluetooth: find and connect to your scooter.",
-                "Notification access: read the Google Maps navigation notification to draw the next turn on the cluster, and read call and message notifications (caller or sender name, and message text for messages) to show alerts on the cluster. This is processed on the phone and sent only to your scooter. Message text is read only to count and alert; it is never stored or uploaded. A name with no Latin letters is shown as the fixed label \"New message\".",
+                "Notification access: read the Google Maps navigation notification to draw the next turn on the cluster, and read call and message notifications (caller or sender name, and message text for messages) to show alerts on the cluster. This is processed on the phone and sent only to your scooter. For a message, a preview of at most 60 characters is kept on the phone for today only and deleted at midnight. It is never uploaded or sent anywhere. For one-time-code and bank or UPI texts only the sender name is used; the text is never stored, shown or sent. A name with no Latin letters is shown as the fixed label \"New message\".",
                 "Location: share your position when you tap share on SOS; fill in your city; count down the distance to the next turn while you navigate (on the phone only, not stored); record your ride route while the scooter is connected; find nearby service centres.",
                 "Contacts: only when you pick an emergency contact. The app keeps that one name and number.",
                 "Photos: only when you choose a profile picture.",

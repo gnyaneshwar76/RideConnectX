@@ -2,6 +2,14 @@
 
 All notable changes to RideConnectX. Format: Keep a Changelog. Versions follow the release tag.
 
+## [1.0.6-tester] - 2026-11-06 (testers only, diagnostic build)
+
+### Improved
+- The ride log now records when the dialer posts and removes a call notification, and how long the Maps reader was down while the scooter link was up. This is to find why the call alert on the cluster stops after about 3 seconds on Android 17.
+
+### Known limits
+- No behaviour change yet. The call alert stopping after 3 seconds is not fixed in this build.
+
 ## [1.0.5-tester] - 2026-10-31 (testers only)
 
 ### Fixed

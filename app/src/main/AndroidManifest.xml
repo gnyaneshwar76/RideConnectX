@@ -72,9 +72,41 @@
       subject to Play's restricted-permission review for no gain.
     -->
 
-    <!-- Android 11+ package visibility: lets the app see Google Maps for the version check and the Turn-on settings button. -->
+    <!-- Android 11+ package visibility: lets the app see Google Maps for the version check and the Turn-on settings button; the other apps are for the Settings app list (real icons and names on Android 11+). -->
     <queries>
         <package android:name="com.google.android.apps.maps" />
+        <package android:name="com.google.android.dialer" />
+        <package android:name="com.google.android.apps.messaging" />
+        <package android:name="com.samsung.android.dialer" />
+        <package android:name="com.samsung.android.messaging" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <package android:name="org.telegram.messenger" />
+        <package android:name="org.telegram.messenger.web" />
+        <package android:name="org.thunderdog.challegram" />
+        <package android:name="com.instagram.android" />
+        <package android:name="com.facebook.katana" />
+        <package android:name="com.facebook.lite" />
+        <package android:name="com.facebook.orca" />
+        <package android:name="com.twitter.android" />
+        <package android:name="com.snapchat.android" />
+        <package android:name="com.linkedin.android" />
+        <package android:name="com.reddit.frontpage" />
+        <package android:name="com.discord" />
+        <package android:name="org.thoughtcrime.securesms" />
+        <package android:name="com.google.android.calendar" />
+        <package android:name="com.samsung.android.calendar" />
+        <package android:name="com.android.calendar" />
+        <package android:name="com.coloros.calendar" />
+        <package android:name="com.oneplus.calendar" />
+        <package android:name="com.google.android.keep" />
+        <package android:name="com.google.android.apps.tasks" />
+        <package android:name="com.samsung.android.app.reminder" />
+        <package android:name="com.google.android.deskclock" />
+        <package android:name="com.android.deskclock" />
+        <package android:name="com.sec.android.app.clockpackage" />
+        <package android:name="com.coloros.alarmclock" />
+        <package android:name="com.oneplus.deskclock" />
     </queries>
 
     <!--

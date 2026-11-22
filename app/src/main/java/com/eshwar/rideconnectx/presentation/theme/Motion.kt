@@ -25,6 +25,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -100,6 +101,20 @@ fun Modifier.pressScale(pressed: Boolean, to: Float = 0.96f): Modifier = compose
     val s by animateFloatAsState(if (pressed) to else 1f, RcxMotion.press(), label = "pressScale")
     graphicsLayer { scaleX = s; scaleY = s }
 }
+
+/**
+ * The one press feel for tappable things: put it BEFORE the background and clip
+ * so the whole surface shrinks, and pass the same [source] to `.clickable(source,
+ * LocalIndication.current, ...)` so the ripple and TalkBack actions are unchanged.
+ * Springs back through [RcxMotion.press]; with animations off it just snaps.
+ */
+fun Modifier.pressSquash(source: androidx.compose.foundation.interaction.InteractionSource, to: Float = PRESS_SQUASH): Modifier = composed {
+    val pressed by source.collectIsPressedAsState()
+    pressScale(pressed, to)
+}
+
+/** How small a pressed thing gets. */
+const val PRESS_SQUASH = 0.96f
 
 /**
  * A short horizontal shake each time [trigger] changes to a new non-zero

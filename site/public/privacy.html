@@ -7,7 +7,7 @@ table{border-collapse:collapse;width:100%;display:block;overflow-x:auto}td,th{bo
 blockquote{margin:0;padding:8px 16px;border-left:4px solid var(--line);color:var(--muted)}
 footer{margin-top:40px;color:var(--muted);font-size:.9rem;border-top:1px solid var(--line);padding-top:12px}</style></head>
 <body><main><h1>Privacy Policy — RideConnectX</h1>
-<p><strong>Last updated:</strong> 17 October 2026
+<p><strong>Last updated:</strong> 22 November 2026
 <strong>Contact:</strong> <a href="mailto:rideconnectx.app@gmail.com">rideconnectx.app@gmail.com</a></p>
 <p>RideConnectX (&quot;the app&quot;) connects your phone to your scooter&#39;s instrument
 cluster over Bluetooth Low Energy, so the cluster can show turn-by-turn
@@ -24,7 +24,7 @@ not legal advice.</p>
 <li>Nothing is sold, and nothing is shared with advertisers or data brokers.</li>
 <li>Notification content is read on-device and relayed to your scooter. It is
 <strong>never</strong> uploaded.</li>
-<li>The Bluetooth link to the cluster is not encrypted: caller and sender names cross the air in plain text. Names are shown on the cluster and kept in the Notifications page on the phone. Message text is read only to count and alert; it is never stored or uploaded. A name with no Latin letters is shown as the fixed label &quot;New message&quot;.</li>
+<li>The Bluetooth link to the cluster is not encrypted: caller and sender names cross the air in plain text. Only a few kinds of app are read: calls and missed calls (the phone app), the default SMS app, Google Messages, WhatsApp and Telegram (the important ones), and social, calendar, reminder and clock apps (the medium ones). Every other app is ignored: its notifications are never read, stored or sent. Of the apps that are read, only a short preview (60 characters at most) is kept, on the phone, and the list is cleared at midnight every day. Messages that look like a one-time code (OTP) or a bank or UPI text show only the sender name: the text itself is never stored, shown or sent anywhere, and history keeps only the sender name and the label &quot;Message&quot;. None of it leaves the phone except the name sent to your scooter. A name with no Latin letters is shown as the fixed label &quot;New message&quot;.</li>
 <li>Report a problem opens your mail app with a pre-filled message; nothing is sent unless you press send.</li>
 <li>While your scooter is connected, the app records your ride with GPS (precise
 location). The route of a finished ride is saved on your phone. If you do not
@@ -52,7 +52,7 @@ is not shown to any other account signed in on the same phone:</p>
 <td>So SOS can offer someone to call — works without internet</td>
 </tr>
 <tr>
-<td>Service records, refuelling records</td>
+<td>Service records</td>
 <td>The service screens</td>
 </tr>
 <tr>
@@ -60,8 +60,12 @@ is not shown to any other account signed in on the same phone:</p>
 <td>The ride screens</td>
 </tr>
 <tr>
-<td>Notification history (the caller or sender name and the word &quot;Call&quot;, &quot;Missed call&quot; or &quot;New message&quot;; never the message text)</td>
+<td>Notification history, today only (the caller or sender name and the word &quot;Call&quot; or &quot;Missed call&quot;, or for a message a short preview of at most 60 characters; deleted before midnight every day; ignored apps are never stored; for one-time-code and bank or UPI texts only the sender name and the label &quot;Message&quot; are kept, never the text)</td>
 <td>The in-app notification list</td>
+</tr>
+<tr>
+<td>Your per-app switches (app package names with on or off) and the list of important and medium apps that have posted a notification (package names only, never text)</td>
+<td>The Settings list of apps that may show on the cluster</td>
 </tr>
 <tr>
 <td>Paired vehicle address and name</td>
@@ -76,7 +80,7 @@ is not shown to any other account signed in on the same phone:</p>
 <td>Your preferences</td>
 </tr>
 <tr>
-<td>Ride recorder file (only if you switch <strong>Settings → Ride testing → Ride recorder</strong> on): each Google Maps instruction such as &quot;Turn left onto MG Road&quot;, the turn sent to the cluster, the Maps destination text, the caller or sender name of calls and messages (never the message text), and route start and end times. It is a file in the app&#39;s own storage folder on the phone, never uploaded, and you can delete it from the same screen.</td>
+<td>Ride recorder file (only if you switch <strong>Settings → Ride testing → Ride recorder</strong> on): each Google Maps instruction such as &quot;Turn left onto MG Road&quot;, the turn sent to the cluster, the Maps destination text, calls and messages with no names and no text (the file never holds who called or wrote), and route start and end times. It is a file in the app&#39;s own storage folder on the phone, never uploaded, and you can delete it from the same screen.</td>
 <td>Checking that the right turns reach the cluster</td>
 </tr>
 </tbody></table>
@@ -116,7 +120,7 @@ Deleting a ride in the app also deletes its cloud copy.</li>
 </tr>
 <tr>
 <td><strong>Notification access</strong></td>
-<td>Read the notification that Google Maps posts while navigating, so the next turn can be drawn on your cluster; and detect that a call or message arrived so the cluster&#39;s lamp lights. For calls and messages (phone dialer, WhatsApp, SMS and similar apps) the app reads the caller or sender name and, for messages, the message text, and may show them on your cluster. <strong>Content is processed on the phone and sent only to your scooter.</strong> It is never uploaded.</td>
+<td>Read the notification that Google Maps posts while navigating, so the next turn can be drawn on your cluster; and detect that a call or message arrived so the cluster&#39;s lamp lights. Only these groups are read: calls and missed calls, the default SMS app, Google Messages, WhatsApp and Telegram (important, shown on the cluster unless you turn the app off), and social, calendar, reminder and clock apps (medium, kept in the in-app list and shown on the cluster only if you turn that app on). All other apps are ignored: never read, stored or sent. For the apps that are read, the app uses the caller or sender name and a short preview of the message (60 characters at most). The preview is kept on the phone for the day only, and for one-time-code and bank or UPI texts only the sender name is used, never the text. <strong>Content is processed on the phone and sent only to your scooter.</strong> It is never uploaded.</td>
 </tr>
 <tr>
 <td><strong>Location</strong></td>
@@ -163,9 +167,11 @@ phones this is done by Google&#39;s location service, under Google&#39;s terms.<
 </ul>
 <h2>6. What is never collected</h2>
 <ul>
-<li>The text of your messages or calls. A caller or sender name is relayed to the
-cluster and kept in the in-app notification list on your phone; the message
-text is neither stored nor uploaded</li>
+<li>Full message text or call content. A caller or sender name is relayed to the
+cluster, and a short preview (60 characters at most) is kept in the in-app
+notification list on your phone for that day only; nothing about notifications
+is uploaded, and notifications from ignored apps are not even read</li>
+<li>The history and the list of apps: they never reach Firestore, Analytics or any server</li>
 <li>Ride log is off by default and stays off until you switch it on.</li>
 <li>A history of where you have travelled outside rides: routes are recorded only while the scooter is connected, and are uploaded only for rides you keep</li>
 <li>Your address book as a whole</li>
@@ -176,6 +182,7 @@ text is neither stored nor uploaded</li>
 <li><strong>Use it as a guest</strong> — nothing is uploaded.</li>
 <li><strong>Sign out</strong> — your last readings are saved to your account, and your profile
 and readings are removed from the phone.</li>
+<li><strong>Per-app switches</strong> — Settings lists the apps that have posted; turn any of them off or on. Notifications are cleared by the app every day.</li>
 <li><strong>Delete local data</strong> — wipes rides, notifications, service records, emergency
 contacts, the paired vehicle, cached readings, the ride log, your avatar and
 profile preferences from the phone.</li>

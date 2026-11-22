@@ -110,20 +110,10 @@ class ServiceRepository @Inject constructor(
         val ownerId = owner.currentId()
         if (taskDao.count(ownerId) > 0) return@withLock
         taskDao.insertAll(
-            listOf(
-                // The maker's own petrol-scooter schedule, in the order a service
-                // book lists it. "Battery Check" used to be here and has been
-                // removed: on a petrol Access the battery is a starter battery
-                // that is simply replaced when it fails, and putting a periodic
-                // battery check on a 125cc scooter reads as a list written for
-                // a different vehicle.
-                ServiceTaskEntity(ownerId = ownerId, label = "Engine Oil", everyKm = 3_000, position = 0),
-                ServiceTaskEntity(ownerId = ownerId, label = "Air Filter", everyKm = 6_000, position = 1),
-                ServiceTaskEntity(ownerId = ownerId, label = "Brake Inspection", everyKm = 3_000, position = 2),
-                ServiceTaskEntity(ownerId = ownerId, label = "Tyre Pressure & Tread", everyKm = 3_000, position = 3),
-                ServiceTaskEntity(ownerId = ownerId, label = "Spark Plug", everyKm = 6_000, position = 4),
-                ServiceTaskEntity(ownerId = ownerId, label = "Drive Belt", everyKm = 12_000, position = 5),
-            )
+            // Ready plan for the connected model (Access schedule when unknown); see ModelServicePlan.
+            com.eshwar.rideconnectx.domain.model.ModelServicePlan
+                .forFamily(com.eshwar.rideconnectx.domain.ProtocolEngine.profile.family).tasks
+                .mapIndexed { i, (label, km) -> ServiceTaskEntity(ownerId = ownerId, label = label, everyKm = km, position = i) }
         )
     }
 

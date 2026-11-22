@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import com.eshwar.rideconnectx.R
 import com.eshwar.rideconnectx.presentation.theme.cardFill
 import com.eshwar.rideconnectx.presentation.theme.ScreenBackdrop
@@ -52,8 +54,8 @@ fun VehicleGalleryScreen(onContinue: () -> Unit = {}) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter),
             contentPadding = PaddingValues(20.dp),

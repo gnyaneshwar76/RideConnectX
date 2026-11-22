@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -86,7 +88,7 @@ fun RideDetailScreen(onBack: () -> Unit, vm: RideDetailViewModel = hiltViewModel
 
     Box(Modifier.fillMaxSize().background(c.bg)) {
         Column(
-            Modifier.windowInsetsPadding(WindowInsets.safeDrawing).widthIn(max = 600.dp)
+            Modifier.safeDrawingCentred().contentWidth()
                 .fillMaxWidth().align(Alignment.TopCenter),
         ) {
             BackHeader(title = stringResource(R.string.ride_detail_title), onBack = onBack)

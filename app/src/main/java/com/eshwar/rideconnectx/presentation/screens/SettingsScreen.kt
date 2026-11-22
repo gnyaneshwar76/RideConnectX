@@ -1,10 +1,13 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import com.eshwar.rideconnectx.presentation.theme.sheetEnter
 import com.eshwar.rideconnectx.presentation.theme.sheetContainerColor
 import com.eshwar.rideconnectx.presentation.theme.GlassSheetWindow
 import com.eshwar.rideconnectx.presentation.theme.ScreenBackdrop
 import com.eshwar.rideconnectx.presentation.theme.cardSurface
+import androidx.core.graphics.drawable.toBitmap
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -18,6 +21,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import com.eshwar.rideconnectx.presentation.components.dockSpace
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,6 +56,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import com.eshwar.rideconnectx.data.nav.AppTier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringResource
@@ -105,6 +113,7 @@ fun SettingsScreen(
     val account by vm.account.collectAsStateWithLifecycle()
     val rideRecorder by vm.rideRecorder.collectAsStateWithLifecycle()
     val gpsCountdown by vm.gpsCountdown.collectAsStateWithLifecycle()
+    val notifApps by vm.notificationApps.collectAsStateWithLifecycle()
 
     var showUnits by remember { mutableStateOf(false) }
     var confirmForget by remember { mutableStateOf(false) }
@@ -115,13 +124,14 @@ fun SettingsScreen(
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .dockSpace()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
             val headerList = androidx.compose.foundation.lazy.rememberLazyListState()
-            BackHeader(title = stringResource(R.string.settings_title), onBack = onBack, lifted = headerList.canScrollBackward)
+            BackHeader(showBack = false, title = stringResource(R.string.settings_title), onBack = onBack, lifted = headerList.canScrollBackward)
 
             LazyColumn(
                 state = headerList,
@@ -155,13 +165,6 @@ fun SettingsScreen(
                             value = s.distanceUnit.short,
                             onClick = { showUnits = true },
                         )
-                        SettingsDivider()
-                        SettingsToggleRow(
-                            title = stringResource(R.string.settings_autonav),
-                            subtitle = stringResource(R.string.settings_autonav_sub),
-                            checked = s.autoStartNavigation,
-                            onCheckedChange = vm::setAutoStartNavigation,
-                        )
                     }
                 }
 
@@ -172,19 +175,6 @@ fun SettingsScreen(
                             vehicleName = vehicleName,
                             connected = connected,
                             onPair = onPairVehicle,
-                        )
-                        SettingsDivider()
-                        // One switch, not two. "Auto connect" and "auto
-                        // reconnect" described the same behaviour, and there was
-                        // no case where wanting one without the other made
-                        // sense. Background connection moved to Permissions,
-                        // where it belongs — it is a permission, not a setting.
-                        SettingsToggleRow(
-                            title = stringResource(R.string.settings_autoconnect),
-                            subtitle = "Connect to your last vehicle when the app opens, " +
-                                "and reconnect on its own if the link drops",
-                            checked = s.autoConnect,
-                            onCheckedChange = vm::setAutoConnect,
                         )
                         SettingsDivider()
                         SettingsLinkRow(
@@ -223,6 +213,38 @@ fun SettingsScreen(
                         )
                         // Marketing notifications removed — the app does not
                         // send any, so a switch for them was pure noise.
+                    }
+                }
+
+                // ── Alert apps ───────────────────────────────────────
+                // Fills itself from the apps that posted; ignored apps never appear.
+                item {
+                    SettingsGroup(stringResource(R.string.settings_notif_apps), Icons.Filled.Notifications) {
+                        if (notifApps.isEmpty()) {
+                            Text(
+                                stringResource(R.string.settings_notif_empty),
+                                style = RcxType.BodySmall.copy(fontSize = 12.sp),
+                                color = c.muted,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
+                        notifApps.groupBy { it.tier }.forEach { (tier, apps) ->
+                            Text(
+                                stringResource(if (tier == AppTier.IMPORTANT) R.string.settings_notif_important else R.string.settings_notif_medium),
+                                style = RcxType.Label.copy(fontSize = 12.sp),
+                                color = c.muted,
+                                modifier = Modifier.padding(horizontal = 16.dp).semantics { heading() },
+                            )
+                            apps.forEach { app ->
+                                SettingsToggleRow(
+                                    title = app.label,
+                                    subtitle = stringResource(if (tier == AppTier.IMPORTANT) R.string.settings_notif_important_sub else R.string.settings_notif_medium_sub),
+                                    checked = app.on,
+                                    onCheckedChange = { vm.setAppSwitch(app.pkg, it) },
+                                    leading = { AppIcon(app.pkg) },
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -412,6 +434,26 @@ private fun AccountCard(
             Icons.AutoMirrored.Filled.KeyboardArrowRight, null,
             Modifier.size(16.dp), tint = c.muted.copy(alpha = 0.44f),
         )
+    }
+}
+
+/** The app's own icon; a bell when Android hides that package from us (package visibility). */
+@Composable
+private fun AppIcon(pkg: String) {
+    val context = LocalContext.current
+    val bitmap = remember(pkg) {
+        runCatching {
+            context.packageManager.getApplicationIcon(pkg).toBitmap(96, 96)
+                .asImageBitmap()
+        }.getOrNull()
+    }
+    val shape = RoundedCornerShape(10.dp)
+    if (bitmap != null) {
+        androidx.compose.foundation.Image(bitmap, null, Modifier.size(34.dp).clip(shape))
+    } else {
+        Box(Modifier.size(34.dp).clip(shape).background(Rcx.colors.muted.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.Notifications, null, Modifier.size(16.dp), tint = Rcx.colors.muted)
+        }
     }
 }
 

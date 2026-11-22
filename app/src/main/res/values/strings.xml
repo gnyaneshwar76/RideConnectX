@@ -54,6 +54,8 @@
     <string name="intro_welcome_to">Welcome to</string>
     <string name="intro_tagline">Premium navigation and ride intelligence for every connected vehicle.</string>
     <string name="intro_get_started">Get Started</string>
+    <string name="intro_start">Start</string>
+    <string name="intro_sign_in">Already have an account? Sign in</string>
     <string name="intro_lets_go">Let\'s Go</string>
     <string name="intro_nav_title">Turn-by-Turn Navigation</string>
     <string name="intro_nav_desc">Real-time navigation delivered to your vehicle\'s display. Eyes on road — always.</string>
@@ -90,8 +92,8 @@
     <string name="guest_subtitle">Just your name — nothing else needed.</string>
     <string name="guest_name_label">YOUR NAME</string>
     <string name="guest_name_hint">e.g. Alex</string>
-    <string name="guest_nav_notice_title">Navigation requires Google Sign-In</string>
-    <string name="guest_nav_notice_body">All other features available as guest.</string>
+    <string name="guest_nav_notice_title">Navigation works through Google Maps</string>
+    <string name="guest_nav_notice_body">Start a route in Google Maps and this app shows it on the cluster.</string>
     <string name="guest_nav_notice_title_local">Navigation works through Google Maps</string>
     <string name="guest_nav_notice_body_local">Start a route in Google Maps and this app shows it on the cluster.</string>
     <string name="guest_creating">Creating…</string>
@@ -111,6 +113,7 @@
     <string name="dash_greeting_morning">Good morning,</string>
     <string name="dash_greeting_afternoon">Good afternoon,</string>
     <string name="dash_greeting_evening">Good evening,</string>
+    <string name="dash_greeting_night">Hello,</string>
     <string name="dash_notifications">Notifications</string>
     <string name="dash_settings">Settings</string>
     <string name="dash_connected">Connected</string>
@@ -139,6 +142,13 @@
     <string name="dash_overdue">OVERDUE</string>
     <string name="dash_due_soon">DUE SOON</string>
     <string name="dash_no_baseline">Add your last service to schedule it</string>
+    <string name="dash_service_left">left</string>
+    <string name="dash_service_due_soon">Due soon</string>
+    <string name="dash_service_overdue">Overdue</string>
+    <plurals name="dash_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
     <string name="dash_due_now">Due now</string>
 
     <!-- 20 Settings -->
@@ -148,10 +158,18 @@
     <string name="settings_appearance_sub">Theme, accent colour and text size</string>
     <string name="settings_units">Units</string>
     <string name="settings_units_sub">How distances are shown in the app</string>
-    <string name="settings_autonav">Auto start navigation</string>
-    <string name="settings_autonav_sub">Relay turns to the cluster as soon as a route begins</string>
+    <string name="appearance_advanced">Advanced</string>
+    <string name="appearance_advanced_title">More options</string>
+    <string name="appearance_advanced_sub">Light or dark, text size, glass, background, buttons</string>
+    <string name="appearance_show">Show</string>
+    <string name="appearance_hide">Hide</string>
+    <string name="settings_notif_apps">Alert apps</string>
+    <string name="settings_notif_important">Important</string>
+    <string name="settings_notif_medium">Medium</string>
+    <string name="settings_notif_important_sub">Shown on your cluster by default</string>
+    <string name="settings_notif_medium_sub">In the list; on the cluster only when switched on</string>
+    <string name="settings_notif_empty">Apps appear here after they send a notification.</string>
     <string name="settings_bluetooth">Bluetooth</string>
-    <string name="settings_autoconnect">Auto connect</string>
     <string name="settings_forget">Forget this vehicle</string>
     <string name="settings_forget_sub">Stops reconnecting until you pair again</string>
     <string name="settings_notifications">Notifications</string>
@@ -426,7 +444,7 @@
     <string name="pair_connect_named">Connect to %1$s</string>
     <string name="notifs_open">Open</string>
     <string name="signin_cloud_off">Cloud sign-in is off in this test build</string>
-    <string name="notif_access_why">Required to read Google Maps\' turn-by-turn notification and relay each turn to the cluster, and to show calls and messages. Caller and sender names (never message text) are shown on the scooter cluster and kept in the Notifications page on this phone. Call and message notifications from any app can reach the cluster. SMS and call-log permissions are not needed.</string>
+    <string name="notif_access_why">Required to read Google Maps\' turn-by-turn notification and relay each turn to the cluster, and to show calls and messages. Caller and sender names and a short preview of the message are shown on the scooter cluster and kept in the Notifications page on this phone until midnight. Only calls and messages from the apps listed in Settings are read; one-time codes and all other apps are skipped. SMS and call-log permissions are not needed.</string>
     <string name="ride_log_share_warning">This log contains caller/sender names and destinations. Share it only with someone you trust.</string>
     <!-- GPS rides -->
     <string name="live_title">RIDING NOW</string>
@@ -460,10 +478,22 @@
     <string name="bgrun_later">Not now</string>
     <string name="bgrun_reminder">For a better experience, enable background run</string>
     <string name="bgrun_enable">Enable</string>
+    <string name="nav_setup_access">Notification access is off, so turns cannot reach your scooter.</string>
+    <string name="nav_setup_fix">Turn on</string>
     <string name="mapsoff_text">Google Maps notifications look off. Turn them on so your dashboard gets directions.</string>
     <string name="mapsoff_turn_on">Turn on</string>
     <string name="mapsoff_dismiss">Dismiss</string>
     <string name="mapsoff_turn_on_desc">Turn on Google Maps notifications</string>
     <string name="mapsoff_dismiss_desc">Dismiss the Google Maps notifications message</string>
     <string name="bgrun_manual">Open Settings &gt; Apps &gt; RideConnectX &gt; Battery &gt; Unrestricted</string>
+    <string name="dock_home">Home</string>
+    <string name="dock_bike">Bike</string>
+    <string name="dock_navigate">Navigate</string>
+    <string name="dock_rides">Rides</string>
+    <string name="dock_settings">Settings</string>
+    <string name="dock_home_desc">Home tab</string>
+    <string name="dock_bike_desc">Bike tab, pairing and connection</string>
+    <string name="dock_navigate_desc">Navigate tab</string>
+    <string name="dock_rides_desc">Rides tab</string>
+    <string name="dock_settings_desc">Settings tab</string>
 </resources>

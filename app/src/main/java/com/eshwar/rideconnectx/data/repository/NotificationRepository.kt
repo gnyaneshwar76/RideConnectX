@@ -36,14 +36,16 @@ class NotificationRepository @Inject constructor(
     private val dao: NotificationDao,
     private val owner: OwnerScope,
 ) {
+    // shortcut: "today" is fixed when the list is opened; an app left open past midnight shows yesterday until the next insert or reopen.
+    /** Today's entries only; opening the list (or the badge) first deletes everything before local midnight. */
     @OptIn(ExperimentalCoroutinesApi::class)
     val notifications: Flow<List<NotificationEntity>> =
-        owner.current.flatMapLatest { dao.observeAll(it) }
+        owner.current.flatMapLatest { prune(); dao.observeSince(it, startOfToday()) }
 
-    /** Drives the unread badge on the Dashboard bell. */
+    /** Drives the unread badge on the Dashboard bell; subscribed at app start, so it also runs the daily delete. */
     @OptIn(ExperimentalCoroutinesApi::class)
     val unreadCount: Flow<Int> =
-        owner.current.flatMapLatest { dao.observeUnreadCount(it) }
+        owner.current.flatMapLatest { prune(); dao.observeUnreadCount(it) }
 
     /**
      * True while an unread entry of [kind] titled [title] exists, so the same
@@ -70,9 +72,9 @@ class NotificationRepository @Inject constructor(
         prune()
     }
 
-    /** 90 days or the newest 500, whichever is smaller. Also call once on app start. */
+    /** History is today only: delete every row (all owners) from before local midnight, and cap a busy day at [KEEP_NEWEST]. */
     suspend fun prune(now: Long = System.currentTimeMillis()) =
-        dao.prune(now - RETENTION_MS, KEEP_NEWEST)
+        dao.prune(startOfToday(now), KEEP_NEWEST)
 
     /**
      * The same event as a phone notification. Returns false when it could not
@@ -121,8 +123,11 @@ class NotificationRepository @Inject constructor(
     companion object {
         /** The [NotificationKind] a tapped phone notification should open. */
         const val EXTRA_KIND = "rcx_notification_kind"
-        const val RETENTION_MS = 90L * 24 * 60 * 60 * 1000
         const val KEEP_NEWEST = 500
+
+        /** Local midnight at the start of [now]'s day, in epoch millis (java.time, so DST and zone changes are safe). */
+        fun startOfToday(now: Long = System.currentTimeMillis(), zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Long =
+            java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
     }
 
     suspend fun markRead(id: Long) = dao.markRead(owner.currentId(), id)

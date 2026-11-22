@@ -1,18 +1,20 @@
 package com.eshwar.rideconnectx.presentation.navigation
 
-import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
-import com.eshwar.rideconnectx.core.util.rememberPermissionsController
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import kotlinx.coroutines.flow.map
+import androidx.compose.foundation.layout.fillMaxSize
+import com.eshwar.rideconnectx.presentation.components.Dock
+import com.eshwar.rideconnectx.presentation.components.DockRoutes
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -31,12 +33,10 @@ import com.eshwar.rideconnectx.presentation.screens.AppearanceScreen
 import com.eshwar.rideconnectx.presentation.screens.BlePairingScreen
 import com.eshwar.rideconnectx.presentation.screens.CreateProfileScreen
 import com.eshwar.rideconnectx.presentation.screens.DashboardScreen
-import com.eshwar.rideconnectx.presentation.screens.GuestProfileScreen
 import com.eshwar.rideconnectx.presentation.screens.LegalScreen
 import com.eshwar.rideconnectx.presentation.screens.NavigationScreen
 import com.eshwar.rideconnectx.presentation.screens.NotificationsScreen
 import com.eshwar.rideconnectx.presentation.screens.PermissionDetailsScreen
-import com.eshwar.rideconnectx.presentation.screens.PermissionsScreen
 import com.eshwar.rideconnectx.presentation.screens.ProfileFoundScreen
 import com.eshwar.rideconnectx.presentation.screens.ProfileScreen
 import com.eshwar.rideconnectx.presentation.screens.SafetyScreen
@@ -53,10 +53,9 @@ import com.eshwar.rideconnectx.presentation.viewmodel.ProfileFormMode
 /** Route names mirror the `ScreenId` union in the design. */
 object Routes {
     const val SPLASH = "splash"
-    /** Welcome plus the three onboarding pages — one swipeable pager. */
+    /** The one-page welcome with a Start button (first open only). */
     const val INTRO = "intro"
     const val SIGN_IN = "signin"
-    const val GUEST_PROFILE = "guestCreate"
     const val TERMS = "terms"
     const val PRIVACY = "privacy"
 
@@ -64,10 +63,7 @@ object Routes {
     const val LEGAL = "legal"
     /** "Add your guest data to this account?" — a guest signing into an account with a profile. */
     const val PROFILE_FOUND = "profile_found"
-    const val PERMISSIONS = "perms"
-    const val VEHICLE = "vehicle"
-
-    /** The same form as [VEHICLE], but only the vehicle part of it. */
+    /** The Create Profile form, only the vehicle part of it. */
     const val CHANGE_VEHICLE = "vehicle_change"
     const val DASHBOARD = "dash"
     const val BLE = "ble"
@@ -84,8 +80,8 @@ object Routes {
     const val ABOUT = "about"
 
     /**
-     * The reference page, reached from Settings. Distinct from [PERMISSIONS],
-     * which is the one-time setup step that fires the dialogs automatically.
+     * The reference page, reached from Settings. Permissions are asked
+     * when needed (Bluetooth on pairing and so on), not on a setup page.
      */
     const val PERMISSION_DETAILS = "permission_details"
 }
@@ -105,9 +101,13 @@ private fun routeFor(kind: NotificationKind): String? = when (kind) {
 
 /** Screens a rider is still getting into the app on; a notification waits past them. */
 private val ENTRY_ROUTES = setOf(
-    Routes.SPLASH, Routes.INTRO, Routes.SIGN_IN, Routes.GUEST_PROFILE, Routes.TERMS, Routes.PRIVACY,
-    Routes.LEGAL, Routes.PROFILE_FOUND, Routes.PERMISSIONS, Routes.VEHICLE,
+    Routes.SPLASH, Routes.INTRO, Routes.SIGN_IN, Routes.TERMS, Routes.PRIVACY,
+    Routes.LEGAL, Routes.PROFILE_FOUND,
 )
+
+/** True when both routes are dock tabs: the dock switches with a fade, not a slide. Pure, so it is unit-tested. */
+internal fun isTabSwitch(from: String?, to: String?): Boolean =
+    from != null && to != null && from != to && from in DockRoutes && to in DockRoutes
 
 /**
  * A second tap during the screen transition is ignored (CHK-27): only the
@@ -121,6 +121,16 @@ private fun NavController.safeBack() { if (onTop()) popBackStack() }
 
 private fun NavController.safeGo(route: String) {
     if (onTop()) navigate(route) { launchSingleTop = true }
+}
+
+/** Dock tab: one entry per tab, Back from any tab lands on Home (N49 keeps Home as the exit). */
+private fun NavController.goTab(route: String) {
+    if (onTop() && currentDestination?.route != route) {
+        navigate(route) {
+            launchSingleTop = true
+            popUpTo(Routes.DASHBOARD)
+        }
+    }
 }
 
 @Composable
@@ -143,24 +153,37 @@ fun NavGraph(
             ?.let { navController.navigate(it) }
     }
 
-    // Push: the new screen slides in from the right while the old one drifts
-    // back and dims; Back reverses it, so the rider always sees where they came
-    // from. Leaving the splash only fades — nothing is "behind" it.
+    // Deeper screens (service, safety, profile, ride detail...): a spring slide,
+    // the old screen drifting back and dimming; Back reverses it. Switching
+    // between two dock tabs is only a calm short fade, so the dock never seems
+    // to move the whole page. Leaving the splash only fades. Springs follow the
+    // phone's animation scale, so with animations off they land at once.
     val spec = RcxMotion.smooth<androidx.compose.ui.unit.IntOffset>()
+    val fadeSpring = RcxMotion.smooth<Float>()
+    val tabFade = spring<Float>(dampingRatio = 1f, stiffness = Spring.StiffnessMedium)
     val fade = tween<Float>(RcxMotion.SCREEN_MS)
+    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH,
         enterTransition = {
             if (initialState.destination.route == Routes.SPLASH) fadeIn(tween(500))
-            else slideInHorizontally(spec) { it } + fadeIn(fade, initialAlpha = 0.6f)
+            else if (isTabSwitch(initialState.destination.route, targetState.destination.route)) fadeIn(tabFade)
+            else slideInHorizontally(spec) { it } + fadeIn(fadeSpring, initialAlpha = 0.6f)
         },
         exitTransition = {
             if (initialState.destination.route == Routes.SPLASH) fadeOut(tween(300))
-            else slideOutHorizontally(spec) { -it / 4 } + fadeOut(fade, targetAlpha = 0.35f)
+            else if (isTabSwitch(initialState.destination.route, targetState.destination.route)) fadeOut(tabFade)
+            else slideOutHorizontally(spec) { -it / 4 } + fadeOut(fadeSpring, targetAlpha = 0.35f)
         },
-        popEnterTransition = { slideInHorizontally(spec) { -it / 4 } + fadeIn(fade, initialAlpha = 0.35f) },
-        popExitTransition = { slideOutHorizontally(spec) { it } + fadeOut(fade, targetAlpha = 0.6f) },
+        popEnterTransition = {
+            if (isTabSwitch(initialState.destination.route, targetState.destination.route)) fadeIn(tabFade)
+            else slideInHorizontally(spec) { -it / 4 } + fadeIn(fadeSpring, initialAlpha = 0.35f)
+        },
+        popExitTransition = {
+            if (isTabSwitch(initialState.destination.route, targetState.destination.route)) fadeOut(tabFade)
+            else slideOutHorizontally(spec) { it } + fadeOut(fadeSpring, targetAlpha = 0.6f)
+        },
     ) {
 
         composable(Routes.SPLASH) {
@@ -171,20 +194,13 @@ fun NavGraph(
 
             SplashScreen(
                 onFinished = {
-                    // Auto-login: an already-authenticated user never sees the
-                    // sign-in flow. Loading resolves before the animation ends,
-                    // so there is no extra wait. Unfinished setup starts over.
+                    // A guest or account already on the phone goes straight to Home.
                     scope.launch {
                         val signedIn = authState is AuthState.Authenticated
-                        val profileDone = authVm.isProfileCompleted()
-                        val mergePending = authVm.isGuestMergePending()
-                        when {
-                            SetupGate.mustReset(signedIn, profileDone, mergePending) -> authVm.resetUnfinishedSetup()
-                            !signedIn -> authVm.dropUnfinishedSignIn()
-                        }
+                        if (!signedIn) authVm.dropUnfinishedSignIn()
                         // A sign-in link opened the app: straight to Sign In, which finishes it.
                         val destination = if (!signedIn && authVm.emailLinkWaiting) Routes.SIGN_IN
-                            else SetupGate.launchRoute(signedIn, profileDone, mergePending)
+                            else SetupGate.launchRoute(signedIn, authVm.isGuestMergePending())
                         navController.navigate(destination) {
                             popUpTo(Routes.SPLASH) { inclusive = true }
                         }
@@ -194,9 +210,18 @@ fun NavGraph(
         }
 
         composable(Routes.INTRO) {
+            val authVm: AuthViewModel = hiltViewModel()
+            val scope = rememberCoroutineScope()
+            // Start makes the guest "Rider", then Home; Back from Home leaves the app.
             IntroScreen(
-                onFinished = { navController.safeGo(Routes.SIGN_IN) },
-                onSkip = { navController.safeGo(Routes.SIGN_IN) },
+                onStart = {
+                    scope.launch {
+                        authVm.ensureGuest()
+                        if (navController.onTop()) navController.navigate(Routes.DASHBOARD) { popUpTo(0) { inclusive = true } }
+                    }
+                },
+                // Back from Sign In pops to Welcome; success is handled by the SIGN_IN route.
+                onSignIn = { navController.safeGo(Routes.SIGN_IN) },
             )
         }
 
@@ -204,6 +229,7 @@ fun NavGraph(
             val authVm: AuthViewModel = hiltViewModel()
             val authState by authVm.authState.collectAsStateWithLifecycle()
             val signingIn by remember { authVm.ui.map { it.isBusy } }.collectAsStateWithLifecycle(false)
+            val scope = rememberCoroutineScope()
 
             // Sign-in success is observed rather than pushed, so Google, email
             // and guest all converge on one navigation path. It waits for the
@@ -212,7 +238,8 @@ fun NavGraph(
             // that sent a returning rider to Create Profile (rider, 26 Sep).
             LaunchedEffect(authState, signingIn) {
                 if (authState is AuthState.Authenticated && !signingIn) {
-                    navController.navigate(Routes.PERMISSIONS) {
+                    authVm.ensureGuest()
+                    navController.navigate(SetupGate.launchRoute(signedIn = true, guestMergePending = authVm.isGuestMergePending())) {
                         // The whole intro, not just this screen. Popping only
                         // Sign In left Welcome and the three onboarding pages
                         // underneath, so Back from Permissions walked a
@@ -223,23 +250,15 @@ fun NavGraph(
             }
 
             SignInScreen(
-                onGuest = { navController.safeGo(Routes.GUEST_PROFILE) },
+                onGuest = {
+                    scope.launch {
+                        authVm.ensureGuest()
+                        navController.navigate(Routes.DASHBOARD) { popUpTo(0) { inclusive = true } }
+                    }
+                },
                 onTerms = { navController.safeGo(Routes.TERMS) },
                 onPrivacy = { navController.safeGo(Routes.PRIVACY) },
                 vm = authVm,
-            )
-        }
-
-        composable(Routes.GUEST_PROFILE) {
-            GuestProfileScreen(
-                onBack = { navController.safeBack() },
-                onContinue = {
-                    navController.navigate(Routes.PERMISSIONS) {
-                        // Sign-in is done; don't let Back return into it, or
-                        // into the onboarding tour sitting underneath it.
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
             )
         }
 
@@ -255,34 +274,11 @@ fun NavGraph(
             LegalScreen(doc = LegalDoc.BOTH, onBack = { navController.safeBack() })
         }
 
-        composable(Routes.PERMISSIONS) {
-            val authVm: AuthViewModel = hiltViewModel()
-            val perms = rememberPermissionsController()
-
-            val scope = rememberCoroutineScope()
-            // A returning rider goes straight to the dashboard. A guest who
-            // signed into an account that already has a profile is asked first
-            // whether to add their guest data to it (rider, 26 Sep).
-            suspend fun next(done: Boolean) {
-                when (val route = SetupGate.afterPermissions(done, authVm.isGuestMergePending())) {
-                    Routes.VEHICLE -> navController.navigate(route)
-                    else -> navController.navigate(route) { popUpTo(0) { inclusive = true } }
-                }
-            }
-            // Nothing to ask for: don't show the setup screen at all.
-            LaunchedEffect(Unit) {
-                if (perms.allRequiredGranted) next(authVm.isProfileCompleted())
-            }
-
-            // The stored value, not the StateFlow's `false` before it loads.
-            PermissionsScreen(onContinue = { scope.launch { next(authVm.isProfileCompleted()) } })
-        }
-
         composable(Routes.PROFILE_FOUND) {
             ProfileFoundScreen(
-                onAdded = { profileDone ->
+                onAdded = { _ ->
                     // Setup resumes if the account's own profile is unfinished.
-                    navController.navigate(SetupGate.launchRoute(signedIn = true, profileDone = profileDone)) {
+                    navController.navigate(SetupGate.launchRoute(signedIn = true)) {
                         popUpTo(0) { inclusive = true }
                     }
                 },
@@ -291,34 +287,6 @@ fun NavGraph(
                         popUpTo(0) { inclusive = true }
                     }
                 },
-            )
-        }
-
-        // Create Profile — name, city, vehicle, paint and consent. Runs once,
-        // ahead of the dashboard, because the dashboard renders the chosen
-        // vehicle and greets the rider by name.
-        composable(Routes.VEHICLE) {
-            // Back here asks before leaving; see CreateProfileScreen.
-            val authVm: AuthViewModel = hiltViewModel()
-            val activity = LocalActivity.current
-            val scope = rememberCoroutineScope()
-            CreateProfileScreen(
-                onExitSetup = {
-                    scope.launch {
-                        authVm.resetUnfinishedSetup()
-                        activity?.finish()
-                    }
-                },
-                onContinue = {
-                    navController.navigate(Routes.DASHBOARD) {
-                        // The whole setup run, not just this step. Popping only
-                        // this screen left Permissions underneath, so Back from
-                        // the Dashboard dropped the rider into a setup screen
-                        // they had already finished.
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-                onLegal = { navController.safeGo(Routes.LEGAL) },
             )
         }
 
@@ -432,5 +400,14 @@ fun NavGraph(
                 },
             )
         }
+    }
+    androidx.compose.animation.AnimatedVisibility(
+        visible = currentRoute in DockRoutes && currentRoute !in ENTRY_ROUTES,
+        modifier = androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
+        enter = fadeIn(fade),
+        exit = fadeOut(fade),
+    ) {
+        Dock(selectedRoute = currentRoute, onSelect = { navController.goTab(it) })
+    }
     }
 }

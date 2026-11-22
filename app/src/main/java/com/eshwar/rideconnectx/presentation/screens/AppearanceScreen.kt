@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import com.eshwar.rideconnectx.presentation.theme.innerFill
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material3.Slider
@@ -38,6 +40,8 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Tune
+import com.eshwar.rideconnectx.presentation.components.SettingsLinkRow
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -95,16 +99,16 @@ fun AppearanceScreen(
     val accent by vm.accentColor.collectAsStateWithLifecycle()
     val surfaceStyle by vm.surfaceStyle.collectAsStateWithLifecycle()
     val intensity by vm.glassIntensity.collectAsStateWithLifecycle()
-    val colourMix by vm.colourMix.collectAsStateWithLifecycle()
     val buttonStyle by vm.buttonStyle.collectAsStateWithLifecycle()
     val backgroundStyle by vm.backgroundStyle.collectAsStateWithLifecycle()
+    var advanced by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
 
     ScreenBackdrop(accent = c.cyan) {
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
@@ -116,8 +120,29 @@ fun AppearanceScreen(
                 contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                item { AppearancePreviewCard() }
+                item { AppearancePreviewCard(vm.distanceUnit.collectAsStateWithLifecycle().value) }
 
+                item {
+                    AccentColourSection(
+                        selected = accent,
+                        // Also clears any mix saved by an older version; the theme ignores mixes.
+                        onSelect = { vm.setAccentColor(it); vm.setColourMix(null) },
+                    )
+                }
+
+                item {
+                    SettingsGroup(stringResource(R.string.appearance_advanced), Icons.Filled.Tune) {
+                        SettingsLinkRow(
+                            title = stringResource(R.string.appearance_advanced_title),
+                            subtitle = stringResource(R.string.appearance_advanced_sub),
+                            value = stringResource(if (advanced) R.string.appearance_hide else R.string.appearance_show),
+                            chevron = false,
+                            onClick = { advanced = !advanced },
+                        )
+                    }
+                }
+
+                if (advanced) {
                 item {
                     SettingsGroup(stringResource(R.string.appearance_theme), Icons.Filled.Palette) {
                         ThemeMode.entries.forEachIndexed { index, mode ->
@@ -199,17 +224,6 @@ fun AppearanceScreen(
                 }
 
                 item {
-                    AccentColourSection(
-                        selected = accent,
-                        // An accent tap is a single colour again, so it clears the mix.
-                        onSelect = { vm.setAccentColor(it); vm.setColourMix(null) },
-                        mixChosen = colourMix != null,
-                    )
-                }
-
-                item { ColourMixSection(selected = colourMix, onSelect = { vm.setColourMix(it) }) }
-
-                item {
                     SettingsGroup(stringResource(R.string.appearance_button_style), Icons.Filled.Palette) {
                         ButtonStyle.entries.forEachIndexed { index, style ->
                             if (index > 0) SettingsDivider()
@@ -241,6 +255,7 @@ fun AppearanceScreen(
                         color = c.muted,
                         modifier = Modifier.padding(horizontal = 2.dp),
                     )
+                }
                 }
             }
         }
@@ -286,7 +301,7 @@ private fun GlassIntensityRow(value: Float, onPreview: (Float) -> Unit, onChange
  * is literally what the app will look like.
  */
 @Composable
-private fun AppearancePreviewCard() {
+private fun AppearancePreviewCard(unit: com.eshwar.rideconnectx.domain.model.DistanceUnit) {
     val c = Rcx.colors
     val shape = RoundedCornerShape(22.dp)
     Column(
@@ -307,8 +322,12 @@ private fun AppearancePreviewCard() {
                 Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Brush.linearGradient(listOf(c.blue, c.cyan))),
-            )
+                    .background(c.blue),
+                contentAlignment = Alignment.Center,
+            ) {
+                // Was an empty square; the wordmark art is wide and mint-blue, so a plain mark is used.
+                Icon(Icons.Filled.Palette, null, Modifier.size(24.dp), tint = Color.White)
+            }
             Column(Modifier.weight(1f)) {
                 Text("RideConnectX", style = RcxType.Wordmark.copy(fontSize = 17.sp), color = c.text)
                 Spacer(Modifier.height(2.dp))
@@ -323,7 +342,7 @@ private fun AppearancePreviewCard() {
         Spacer(Modifier.height(14.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PreviewTile("ODO", "1,602 km", c.cyan, Modifier.weight(1f))
+            PreviewTile("ODO", unit.format(1602), c.cyan, Modifier.weight(1f))
             PreviewTile("STATUS", "Connected", c.green, Modifier.weight(1f))
         }
 
@@ -353,18 +372,13 @@ private fun PreviewTile(label: String, value: String, accent: Color, modifier: M
 }
 
 /**
- * Accent colour — a real picker now.
- *
- * Every swatch re-tints the whole app the instant it is tapped: the chosen
- * accent replaces the brand blue in the colour tokens, so every screen, border
- * and glow follows. Each accent carries a dark and a light value, because a hue
- * that reads on the navy background is usually too pale on the light one.
+ * Palette picker: three calm palettes, each with a small live preview
+ * (background, card, accent button) drawn in the colours of the current theme.
  */
 @Composable
 private fun AccentColourSection(
     selected: AccentColor,
     onSelect: (AccentColor) -> Unit,
-    mixChosen: Boolean = false,
 ) {
     val c = Rcx.colors
     val shape = RoundedCornerShape(20.dp)
@@ -377,140 +391,46 @@ private fun AccentColourSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Filled.Palette, null, Modifier.size(15.dp), tint = c.blue)
-            Text(stringResource(R.string.appearance_accent), style = RcxType.Section.copy(fontSize = 16.sp), color = c.text)
+            Text(stringResource(R.string.palette_title), style = RcxType.Section.copy(fontSize = 16.sp), color = c.text)
         }
         Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .cardSurface(shape)
-                .padding(16.dp),
+            Modifier.fillMaxWidth().clip(shape).cardSurface(shape).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // Two rows of four, so every swatch stays a comfortable target.
-            AccentColor.entries.chunked(4).forEach { row ->
+            AccentColor.entries.forEach { accent ->
+                val active = accent == selected
+                val swatch = Color(accent.argb)
                 Row(
-                    Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .border(if (active) 2.dp else 1.dp, if (active) swatch else c.border, RoundedCornerShape(14.dp))
+                        .semantics { this.selected = active; contentDescription = accent.label }
+                        .clickable(role = androidx.compose.ui.semantics.Role.RadioButton, onClickLabel = accent.label) { onSelect(accent) }
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    row.forEach { accent ->
-                        val swatch = Color(if (dark) accent.darkArgb else accent.lightArgb)
-                        val active = accent == selected && !mixChosen
+                    // Preview: screen background, a card on it, and an accent button.
+                    Box(
+                        Modifier.size(width = 64.dp, height = 44.dp).clip(RoundedCornerShape(8.dp))
+                            .background(if (dark) Color(0xFF121315) else Color(0xFFF5F6F8)),
+                    ) {
                         Box(
-                            Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .clip(CircleShape)
-                                .background(swatch)
-                                .border(
-                                    width = if (active) 3.dp else 1.dp,
-                                    color = if (active) c.text else c.border,
-                                    shape = CircleShape,
-                                )
-                                .semantics { this.selected = active; contentDescription = accent.label }
-                                .clickable(role = androidx.compose.ui.semantics.Role.RadioButton, onClickLabel = accent.label) { onSelect(accent) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (active) {
-                                Icon(
-                                    Icons.Filled.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                    tint = Color.White,
-                                )
-                            }
-                        }
+                            Modifier.align(Alignment.TopStart).padding(6.dp).size(width = 36.dp, height = 16.dp)
+                                .clip(RoundedCornerShape(4.dp)).background(if (dark) Color(0xFF1C1E21) else Color.White),
+                        )
+                        Box(
+                            Modifier.align(Alignment.BottomEnd).padding(6.dp).size(width = 30.dp, height = 12.dp)
+                                .clip(RoundedCornerShape(6.dp)).background(swatch),
+                        )
                     }
-                    // Keeps a short final row aligned with the one above it.
-                    repeat(4 - row.size) { Box(Modifier.weight(1f)) }
-                }
-            }
-
-            Text(
-                "${selected.label} — applied everywhere, straight away. " +
-                    "Blue is the RideConnectX brand colour.",
-                style = RcxType.BodySmall.copy(fontSize = 12.sp),
-                color = c.muted,
-            )
-        }
-    }
-}
-
-/**
- * Colour mix: 12 gradients of 2 to 4 colours, each softened toward slate (the
- * owner asked for soft, not bright). The chosen mix fills every main button
- * and its first colour becomes the accent.
- */
-@Composable
-private fun ColourMixSection(
-    selected: ColourMix?,
-    onSelect: (ColourMix) -> Unit,
-) {
-    val c = Rcx.colors
-    val shape = RoundedCornerShape(20.dp)
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.padding(start = 2.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Filled.Palette, null, Modifier.size(15.dp), tint = c.blue)
-            Text(stringResource(R.string.appearance_colour_mix), style = RcxType.Section.copy(fontSize = 16.sp), color = c.text)
-        }
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .cardSurface(shape)
-                .padding(16.dp),
-        ) {
-            ColourMix.entries.chunked(3).forEach { row ->
-                Row(
-                    Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    row.forEach { mix ->
-                        val active = mix == selected
-                        Column(
-                            Modifier
-                                .weight(1f)
-                                .defaultMinSize(minHeight = 48.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .semantics { this.selected = active }
-                                .clickable(role = androidx.compose.ui.semantics.Role.RadioButton, onClickLabel = mix.label) { onSelect(mix) },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(40.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Brush.linearGradient(mix.colours.map { Color(soft(it)) }))
-                                    .border(
-                                        width = if (active) 3.dp else 1.dp,
-                                        color = if (active) c.text else c.border,
-                                        shape = RoundedCornerShape(12.dp),
-                                    ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                // Soft fills are light: black reads on all 12 (see ColourMathTest).
-                                if (active) Icon(Icons.Filled.Check, null, Modifier.size(18.dp), tint = Color.Black)
-                            }
-                            Text(
-                                mix.label,
-                                style = RcxType.BodySmall.copy(fontSize = 12.sp),
-                                color = if (active) c.text else c.muted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
-                        }
-                    }
-                    repeat(3 - row.size) { Box(Modifier.weight(1f)) }
+                    Text(accent.label, style = RcxType.Body, color = c.text, modifier = Modifier.weight(1f))
+                    if (active) Icon(Icons.Filled.Check, null, Modifier.size(20.dp), tint = swatch)
                 }
             }
             Text(
-                if (selected == null) stringResource(R.string.appearance_colour_mix_none)
-                else stringResource(R.string.appearance_colour_mix_on, selected.label),
+                stringResource(R.string.palette_hint, selected.label),
                 style = RcxType.BodySmall.copy(fontSize = 12.sp),
                 color = c.muted,
             )

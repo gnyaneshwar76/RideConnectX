@@ -44,6 +44,13 @@ interface AuthRepository {
     /** Profile -> Recent sign-ins, newest first (at most 10). */
     suspend fun recentSignIns(): Result<List<com.eshwar.rideconnectx.domain.model.LoginEntry>>
 
+    /**
+     * First open: makes a local guest by itself and marks onboarding and the profile done,
+     * so there is no sign-in wall and no form. Does nothing when someone is signed in.
+     * The guest's data is marked to follow the rider into a Google account signed in later.
+     */
+    suspend fun ensureGuest()
+
     /** Local-only session; never reaches Firebase or Firestore. */
     suspend fun continueAsGuest(name: String): AuthResult
 

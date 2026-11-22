@@ -6,7 +6,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -138,7 +141,23 @@ fun VehicleArtwork(
             // Fit, never crop: a cropped vehicle looks like a mistake, and
             // these are wider than most of the boxes they sit in.
             contentScale = ContentScale.Fit,
-            modifier = modifier,
+            // The photo's own soft shadow is cut off flat at the picture's edge,
+            // which showed as a straight line in the light card. Fade the last
+            // few percent of the bottom and the sides to transparent so it melts
+            // into the card. One offscreen layer, drawn once, nothing per frame.
+            modifier = modifier
+                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        Brush.verticalGradient(0.92f to Color.Black, 1f to Color.Transparent),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                    )
+                    drawRect(
+                        Brush.horizontalGradient(0f to Color.Transparent, 0.04f to Color.Black, 0.96f to Color.Black, 1f to Color.Transparent),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+                    )
+                },
         )
         return
     }

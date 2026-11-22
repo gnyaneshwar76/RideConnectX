@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import com.eshwar.rideconnectx.presentation.theme.sheetEnter
 import com.eshwar.rideconnectx.presentation.theme.innerFill
 import com.eshwar.rideconnectx.presentation.theme.sheetContainerColor
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
@@ -77,8 +80,8 @@ fun AboutScreen(
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
@@ -151,7 +154,7 @@ private fun AppInformationCard() {
         RcxPhotoFill(
             res = R.drawable.img_about_header,
             modifier = Modifier.matchParentSize(),
-            darken = 0.74f,
+            darken = 0.88f, // darker scrim so the tagline reads (walk A16 #2)
             darkenColor = c.card,
         )
 
@@ -168,7 +171,7 @@ private fun AppInformationCard() {
             Text(
                 stringResource(R.string.about_tagline),
                 style = RcxType.BodySmall.copy(fontSize = 13.sp),
-                color = c.muted,
+                color = c.text,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(16.dp))
@@ -222,9 +225,9 @@ private fun ConnectionDetails() {
             stringResource(R.string.conn_age, ((now - d.connectedAtMs) / 1000).coerceAtLeast(0).toInt()),
         )
     }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(stringResource(R.string.conn_title), style = RcxType.MonoTiny, color = c.muted)
-        lines.forEach { Text(it, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.muted) }
+    Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(stringResource(R.string.conn_title), style = RcxType.BodySmall.copy(fontSize = 14.sp), color = c.text)
+        lines.forEach { Text(it, style = RcxType.BodySmall.copy(fontSize = 13.sp), color = c.muted) }
     }
 }
 
@@ -278,7 +281,7 @@ private enum class AboutSheet(val title: String, val body: String) {
         • Phone battery, signal and clock shown on the cluster.
         • Service tracking with reminders and a maintenance history.
         • Safety screen with SOS and emergency contacts.
-        • Light and dark themes, eight accent colours, adjustable text size.
+        • Light and dark themes, three colour palettes, adjustable text size.
 
         FIXED
         • Google sign-in no longer says "no accounts found" on the first tap.

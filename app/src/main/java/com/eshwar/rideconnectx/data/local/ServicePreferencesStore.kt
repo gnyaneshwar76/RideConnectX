@@ -42,8 +42,11 @@ class ServicePreferencesStore @Inject constructor(
      * The maker's own schedule for the Access family: every 3,000 km or 3 months,
      * whichever comes first. The rider can change both.
      */
-    val defaultIntervalKm = 3_000
-    val defaultIntervalDays = 90
+    // Follows the connected model's ready plan; a value the rider saved still wins.
+    val defaultIntervalKm get() = com.eshwar.rideconnectx.domain.model.ModelServicePlan
+        .forFamily(com.eshwar.rideconnectx.domain.ProtocolEngine.profile.family).intervalKm
+    val defaultIntervalDays get() = com.eshwar.rideconnectx.domain.model.ModelServicePlan
+        .forFamily(com.eshwar.rideconnectx.domain.ProtocolEngine.profile.family).intervalDays
 
     val remindersEnabled: Flow<Boolean> =
         context.servicePrefs.data.map { it[REMINDERS_ON] ?: true }

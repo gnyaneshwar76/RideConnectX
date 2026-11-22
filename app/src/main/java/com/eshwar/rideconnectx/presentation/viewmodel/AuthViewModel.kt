@@ -78,6 +78,9 @@ class AuthViewModel @Inject constructor(
     /** The stored value, not the StateFlow's `false` placeholder before it loads. */
     suspend fun isProfileCompleted(): Boolean = prefs.profileCompleted.first()
 
+    /** First open: makes the local guest "Rider" (or just marks onboarding done when signed in). */
+    suspend fun ensureGuest() = auth.ensureGuest()
+
     /** A guest signed into an account with a profile and has not yet chosen what to do. */
     suspend fun isGuestMergePending(): Boolean = prefs.guestMergePending.first()
 

@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import com.eshwar.rideconnectx.R
 import com.eshwar.rideconnectx.presentation.theme.innerFill
 import com.eshwar.rideconnectx.presentation.theme.cardFill
@@ -98,8 +100,8 @@ fun PermissionDetailsScreen(onBack: () -> Unit) {
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
@@ -117,7 +119,7 @@ fun PermissionDetailsScreen(onBack: () -> Unit) {
                             "sent anywhere — every permission is used on this " +
                             "phone, to put information on your vehicle's cluster.",
                         style = RcxType.BodySmall.copy(fontSize = 13.sp),
-                        color = c.muted,
+                        color = c.text.copy(alpha = 0.88f),
                         modifier = Modifier.padding(bottom = 4.dp),
                     )
                 }

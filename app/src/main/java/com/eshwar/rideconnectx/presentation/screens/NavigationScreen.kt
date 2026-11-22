@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
 import androidx.compose.runtime.setValue
@@ -32,7 +34,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import com.eshwar.rideconnectx.presentation.components.dockSpace
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -104,11 +108,8 @@ fun NavigationScreen(
     // a Settings page rather than by a dialog — so re-check whenever we return.
     val notificationAccess = rememberNotificationAccess()
 
-    // Background run: one pop-up on the first visit after install, then a reminder
-    // while it is off. Re-read on every resume (the rider returns from Settings).
+    // Background run: the lifecycle re-read when the rider returns from Settings.
     val backgroundRun = com.eshwar.rideconnectx.core.util.rememberBackgroundRunAccess()
-    val popupShown by vm.popupShown.collectAsStateWithLifecycle()
-    var showPopup by remember { mutableStateOf(false) }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, e ->
@@ -116,31 +117,6 @@ fun NavigationScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    // firstOpen = this composition; the saved flag stops every later visit.
-    LaunchedEffect(popupShown) {
-        val shown = popupShown ?: return@LaunchedEffect
-        if (com.eshwar.rideconnectx.core.util.BackgroundRunRules.showPopup(backgroundRun.granted, shown, true)) {
-            showPopup = true
-            vm.markPopupShown()
-        }
-    }
-    if (showPopup) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showPopup = false },
-            title = { Text(stringResource(R.string.bgrun_title)) },
-            text = { Text(stringResource(R.string.bgrun_body)) },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { showPopup = false; backgroundRun.request() }) {
-                    Text(stringResource(R.string.bgrun_allow))
-                }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showPopup = false }) {
-                    Text(stringResource(R.string.bgrun_later))
-                }
-            },
-        )
     }
 
     val openMaps = {
@@ -162,16 +138,17 @@ fun NavigationScreen(
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .dockSpace()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
-            BackHeader(title = "Navigation", onBack = onBack)
+            BackHeader(showBack = false, title = "Navigation", onBack = onBack)
 
             // Map area — the aerial photograph, then the design's grid and
             // route sketch over it.
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            val mapBox: @Composable (Modifier) -> Unit = { mapMod -> Box(mapMod.fillMaxWidth()) {
                 // Heavily dimmed on purpose. The maneuver card is translucent
                 // and the status cards put white text straight onto this, so
                 // the photograph has to read as texture, not as a picture.
@@ -184,18 +161,6 @@ fun NavigationScreen(
                 RouteBackdrop()
 
                 when {
-                    // Without this permission the relay can never receive a
-                    // single instruction, so say that plainly instead of
-                    // sitting on "waiting for Maps" forever.
-                    !notificationAccess.granted -> StatusCard(
-                        title = "Turn on notification access",
-                        body = "RideConnectX reads Google Maps' turn-by-turn notification to mirror each " +
-                            "instruction onto your vehicle's cluster. Android grants this from its own " +
-                            "settings page.",
-                        modifier = Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
-                        action = "Open notification access" to notificationAccess.openSettings,
-                    )
-
                     else -> when (val s = navState) {
                         is NavState.Active ->
                             if (s.maneuver.maneuverId == com.eshwar.rideconnectx.domain.ProtocolEngine.Maneuver.DESTINATION) {
@@ -223,11 +188,11 @@ fun NavigationScreen(
                         )
                     }
                 }
-            }
+            } }
 
             // Bottom sheet — trip readout, hand-off button, relay status.
-            Column(
-                Modifier
+            val sheet: @Composable (Modifier) -> Unit = { sheetMod -> Column(
+                sheetMod
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                     .background(c.bg)
@@ -248,24 +213,9 @@ fun NavigationScreen(
                     Readout("Speed", speed?.let { "$it km/h" } ?: "—", true, Modifier.weight(1f))
                 }
 
-                if (com.eshwar.rideconnectx.core.util.BackgroundRunRules.showReminder(backgroundRun.granted)) {
-                    Spacer(Modifier.height(12.dp))
-                    val reminder = stringResource(R.string.bgrun_reminder)
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(c.amber.copy(alpha = 0.10f))
-                            .padding(start = 14.dp, end = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(reminder, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.text, modifier = Modifier.weight(1f))
-                        androidx.compose.material3.TextButton(onClick = backgroundRun.request) {
-                            Text(stringResource(R.string.bgrun_enable))
-                        }
-                    }
-                }
-
-                // Maps-off card: Maps was opened from here but never posted. Never during a route.
+                // Setup check: ONE line naming what is missing, one tap to fix it.
+                // Order: notification access (no turns at all), then Maps notifications
+                // off, then background run.
                 val mapsOff by vm.mapsOffState.collectAsStateWithLifecycle()
                 var now by remember { mutableStateOf(System.currentTimeMillis()) }
                 // Only while the app is on screen; catches up at once when it comes back.
@@ -275,29 +225,43 @@ fun NavigationScreen(
                     now = System.currentTimeMillis()
                     while (true) { kotlinx.coroutines.delay(30_000); now = System.currentTimeMillis() }
                 }
-                if (com.eshwar.rideconnectx.data.local.MapsOffRules.shouldShowMapsOffCard(
-                        mapsOff, notificationAccess.granted, navState is NavState.Active, now)
-                ) {
+                val showMapsOff = com.eshwar.rideconnectx.data.local.MapsOffRules.shouldShowMapsOffCard(
+                    mapsOff, notificationAccess.granted, navState is NavState.Active, now)
+                val showBackground = com.eshwar.rideconnectx.core.util.BackgroundRunRules.showReminder(backgroundRun.granted)
+                val setupText = when {
+                    !notificationAccess.granted -> stringResource(R.string.nav_setup_access)
+                    showMapsOff -> stringResource(R.string.mapsoff_text)
+                    showBackground -> stringResource(R.string.bgrun_reminder)
+                    else -> null
+                }
+                if (setupText != null) {
                     Spacer(Modifier.height(12.dp))
-                    val mapsOffText = stringResource(R.string.mapsoff_text)
-                    val turnOnDesc = stringResource(R.string.mapsoff_turn_on_desc)
+                    val fixLabel = stringResource(if (!notificationAccess.granted) R.string.nav_setup_fix else if (showMapsOff) R.string.mapsoff_turn_on else R.string.bgrun_enable)
                     val dismissDesc = stringResource(R.string.mapsoff_dismiss_desc)
-                    Row(
+                    Column(
                         Modifier.fillMaxWidth().padding(horizontal = 20.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .background(c.amber.copy(alpha = 0.10f))
-                            .padding(start = 14.dp, end = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                            .padding(start = 14.dp, end = 4.dp, top = 8.dp),
                     ) {
-                        Text(mapsOffText, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.text, modifier = Modifier.weight(1f))
-                        androidx.compose.material3.TextButton(
-                            onClick = { vm.mapsOffButtonTapped(); openMapsNotificationSettings(context) },
-                            modifier = Modifier.semantics { contentDescription = turnOnDesc },
-                        ) { Text(stringResource(R.string.mapsoff_turn_on)) }
-                        androidx.compose.material3.TextButton(
-                            onClick = vm::dismissMapsOff,
-                            modifier = Modifier.semantics { contentDescription = dismissDesc },
-                        ) { Text(stringResource(R.string.mapsoff_dismiss)) }
+                        Text(setupText, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.text)
+                        // Text on top, buttons under it: beside it, a big font size broke words.
+                        Row(Modifier.align(Alignment.End)) {
+                            if (notificationAccess.granted && showMapsOff) {
+                                androidx.compose.material3.TextButton(
+                                    onClick = vm::dismissMapsOff,
+                                    modifier = Modifier.semantics { contentDescription = dismissDesc },
+                                ) { Text(stringResource(R.string.mapsoff_dismiss)) }
+                            }
+                            androidx.compose.material3.TextButton(
+                                onClick = when {
+                                    !notificationAccess.granted -> notificationAccess.openSettings
+                                    showMapsOff -> { { vm.mapsOffButtonTapped(); openMapsNotificationSettings(context) } }
+                                    else -> backgroundRun.request
+                                },
+                                modifier = Modifier.semantics { contentDescription = "$fixLabel. $setupText" },
+                            ) { Text(fixLabel) }
+                        }
                     }
                 }
 
@@ -324,6 +288,20 @@ fun NavigationScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 )
                 Spacer(Modifier.height(16.dp))
+            } }
+
+            // Landscape: the screen is short, so the map and the readout sit side by
+            // side (the readout scrolls) instead of the readout eating the map.
+            if (androidx.compose.ui.platform.LocalConfiguration.current.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            ) {
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    mapBox(Modifier.weight(1f).fillMaxHeight())
+                    sheet(Modifier.weight(1f).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()))
+                }
+            } else {
+                mapBox(Modifier.weight(1f))
+                sheet(Modifier)
             }
         }
     }
@@ -528,6 +506,8 @@ private fun StatusCard(
             .clip(shape)
             .background(c.bg.copy(alpha = 0.92f))
             .border(1.dp, c.border, shape)
+            // Taller than the map area (big font, landscape): scroll, never clip.
+            .verticalScroll(androidx.compose.foundation.rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

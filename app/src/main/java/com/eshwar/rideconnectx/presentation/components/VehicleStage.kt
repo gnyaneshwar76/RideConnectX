@@ -33,6 +33,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.eshwar.rideconnectx.domain.model.Vehicle
@@ -115,31 +116,38 @@ fun VehicleStage(
             val ry = size.height * 0.20f
 
             val glow = 0.82f + 0.12f * breath.value + 0.35f * power.value
-            drawOval(
-                brush = Brush.radialGradient(
-                    0f to paint.copy(alpha = (0.55f * glow).coerceAtMost(1f)),
-                    0.45f to paint.copy(alpha = (0.22f * glow).coerceAtMost(1f)),
-                    1f to Color.Transparent,
-                    center = Offset(cx, cy),
+            // A circle gradient squashed into an oval, so it fades to nothing on
+            // every side. drawOval with a circular brush cut the light off flat
+            // at the oval's top and bottom, which showed as a hard straight edge.
+            scale(1f, ry / rx, pivot = Offset(cx, cy)) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        0f to paint.copy(alpha = (0.55f * glow).coerceAtMost(1f)),
+                        0.45f to paint.copy(alpha = (0.22f * glow).coerceAtMost(1f)),
+                        1f to Color.Transparent,
+                        center = Offset(cx, cy),
+                        radius = rx,
+                    ),
                     radius = rx,
-                ),
-                topLeft = Offset(cx - rx, cy - ry),
-                size = Size(rx * 2, ry * 2),
-            )
+                    center = Offset(cx, cy),
+                )
+            }
 
             // A tighter, brighter core right under the wheels.
             val coreX = size.width * 0.26f
             val coreY = size.height * 0.075f
-            drawOval(
-                brush = Brush.radialGradient(
-                    0f to Color.White.copy(alpha = 0.20f + 0.12f * power.value),
-                    1f to Color.Transparent,
-                    center = Offset(cx, cy),
+            scale(1f, coreY / coreX, pivot = Offset(cx, cy)) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        0f to Color.White.copy(alpha = 0.20f + 0.12f * power.value),
+                        1f to Color.Transparent,
+                        center = Offset(cx, cy),
+                        radius = coreX,
+                    ),
                     radius = coreX,
-                ),
-                topLeft = Offset(cx - coreX, cy - coreY),
-                size = Size(coreX * 2, coreY * 2),
-            )
+                    center = Offset(cx, cy),
+                )
+            }
 
             // Haze above the floor, so the vehicle sits in air rather than on a
             // sticker. Fades out well before the top of the card.
@@ -147,7 +155,8 @@ fun VehicleStage(
                 brush = Brush.verticalGradient(
                     0f to Color.Transparent,
                     0.55f to paint.copy(alpha = 0.05f),
-                    1f to paint.copy(alpha = 0.13f),
+                    0.85f to paint.copy(alpha = 0.09f),
+                    1f to Color.Transparent,
                 )
             )
         }
@@ -209,7 +218,7 @@ fun VehicleStage(
                         0f to c.card.copy(alpha = 0.35f),
                         0.25f to Color.Transparent,
                         0.9f to Color.Transparent,
-                        1f to c.card.copy(alpha = 0.55f),
+                        1f to Color.Transparent,
                     )
                 )
             }

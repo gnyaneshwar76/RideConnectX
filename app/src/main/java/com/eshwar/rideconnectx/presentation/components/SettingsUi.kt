@@ -88,6 +88,8 @@ fun SettingsToggleRow(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    /** Optional picture before the text (the app icon in the notification app list). */
+    leading: (@Composable () -> Unit)? = null,
 ) {
     val c = Rcx.colors
     Row(
@@ -102,6 +104,7 @@ fun SettingsToggleRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        leading?.invoke()
         Column(Modifier.weight(1f)) {
             Text(title, style = RcxType.Label.copy(fontSize = 14.sp), color = c.text)
             if (subtitle.isNotBlank()) {

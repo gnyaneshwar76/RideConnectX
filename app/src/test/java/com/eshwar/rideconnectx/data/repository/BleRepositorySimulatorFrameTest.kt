@@ -15,6 +15,15 @@ class BleRepositorySimulatorFrameTest {
         assertEquals("Access", ProtocolEngine.profile.model)
     }
 
+    @Test fun reconnectOnlyWithSavedAddressAndNoLink() {
+        val idle = com.eshwar.rideconnectx.domain.repository.ConnectionState.Idle
+        val up = com.eshwar.rideconnectx.domain.repository.ConnectionState.Connected("A", "n")
+        assertTrue(BleRepositorySimulatorImpl.shouldReconnect("A", idle))
+        assertTrue(!BleRepositorySimulatorImpl.shouldReconnect(null, idle))
+        assertTrue(!BleRepositorySimulatorImpl.shouldReconnect("", idle))
+        assertTrue(!BleRepositorySimulatorImpl.shouldReconnect("A", up))
+    }
+
     @Test fun otherModelsFollowTheName() {
         assertTrue(BleRepositorySimulatorImpl.configureAndDescribe("SBM010000000").contains("checksum=sum"))
         assertEquals("V-STROM SX", ProtocolEngine.profile.model)

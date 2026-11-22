@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -89,8 +90,9 @@ fun PrimaryButton(
     val pressed by interaction.collectIsPressedAsState()
 
     val base = modifier
-        .pressScale(pressed && enabled, 0.97f)
-        .height(56.dp)
+        .pressScale(pressed && enabled)
+        // Grows with a big font instead of cutting the label.
+        .heightIn(min = 56.dp)
         // Dimmed so they do not look tappable; 0.6 (was 0.4) keeps the label readable in dark theme.
         .alpha(if (enabled) 1f else 0.6f)
         .clip(shape)
@@ -110,7 +112,7 @@ fun PrimaryButton(
     Box(
         modifier = styled
             .then(if (enabled && !busy) Modifier.clickable(interaction, LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick) else Modifier)
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(
@@ -121,6 +123,7 @@ fun PrimaryButton(
                 text = label,
                 style = RcxType.Button.copy(fontWeight = FontWeight.SemiBold),
                 color = onFill,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
             if (busy) androidx.compose.material3.CircularProgressIndicator(
                 modifier = Modifier.size(18.dp).popIn(),
@@ -237,6 +240,8 @@ fun BackHeader(
     right: (@Composable () -> Unit)? = null,
     /** The list below has scrolled: the title tucks in and a hairline separates it. */
     lifted: Boolean = false,
+    /** False on the dock tabs: the dock is the way out, system Back still works. */
+    showBack: Boolean = true,
 ) {
     val c = Rcx.colors
     val shape = RoundedCornerShape(12.dp)
@@ -258,7 +263,7 @@ fun BackHeader(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
+        if (showBack) Box(
             Modifier
                 .size(36.dp)
                 .then(
@@ -374,3 +379,17 @@ fun RideRefreshBox(
 }
 
 private const val RIDE_MS = 900L
+
+/**
+ * Text inside [content] grows with the rider's font size, but never past [max]
+ * times normal. For small fixed-width labels (dock tabs, period tabs, tile
+ * captions) that would otherwise be cut or break mid-word at 2.0x.
+ */
+@Composable
+fun CappedFontScale(max: Float, content: @Composable () -> Unit) {
+    val d = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, minOf(d.fontScale, max)),
+        content = content,
+    )
+}

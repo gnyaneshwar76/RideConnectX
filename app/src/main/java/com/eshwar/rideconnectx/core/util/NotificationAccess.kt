@@ -27,9 +27,9 @@ object NotificationDisclosure {
     const val BODY = "Android is about to ask you to let RideConnectX read notifications. " +
         "Here is what the app does with them.\n\n" +
         "Google Maps: reads the distance, instruction, street and arrival time to draw the turn on your cluster.\n\n" +
-        "Calls and messages: the caller or sender name is shown on your cluster and kept in the Notifications page on this phone. The message text is never shown or kept. " +
-        "Notifications of the call or message kind from any app can reach the cluster, not only WhatsApp and Google Messages.\n\n" +
-        "Other notifications are looked at only to skip them. " +
+        "Calls and messages: the caller or sender name and a short preview (up to 60 characters) are shown on your cluster and kept in the Notifications page on this phone until midnight. " +
+        "Only calls and the messaging apps listed in Settings are read; for one-time-code and bank texts only the sender name is used, never the text, and you can switch any app off.\n\n" +
+        "All other apps are skipped: nothing is read, kept or shown. " +
         "Nothing you read here is uploaded; it stays on your phone and goes to your scooter by Bluetooth."
 }
 
@@ -79,8 +79,9 @@ fun rememberNotificationAccess(): NotificationAccess {
             confirmButton = {
                 TextButton(onClick = {
                     showDisclosure = false
-                    runCatching {
-                        launcher.launch(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    // The page of this app on API 30+, else the list; the return is seen on resume.
+                    runCatching { launcher.launch(notificationAccessIntent(context)) }.onFailure {
+                        runCatching { launcher.launch(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
                     }
                 }) { Text("Continue") }
             },
@@ -94,6 +95,15 @@ fun rememberNotificationAccess(): NotificationAccess {
         refresh = refresh,
     )
 }
+
+/** The exact Notification access page for this app (API 30+), or the list page below that. */
+internal fun notificationAccessIntent(context: Context): Intent =
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+        Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
+            Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+            ComponentName(context, MapsNotificationListener::class.java).flattenToString(),
+        )
+    } else Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
 
 /**
  * Reads the system's list of enabled listeners rather than asking the service

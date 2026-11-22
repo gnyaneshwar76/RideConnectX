@@ -39,7 +39,7 @@ class AppearanceViewModel @Inject constructor(
         store.fontSize.stateIn(viewModelScope, SharingStarted.Eagerly, FontSize.MEDIUM)
 
     val accentColor: StateFlow<AccentColor> =
-        store.accentColor.stateIn(viewModelScope, SharingStarted.Eagerly, AccentColor.BLUE)
+        store.accentColor.stateIn(viewModelScope, SharingStarted.Eagerly, AccentColor.DEFAULT)
 
     /** Flat or glass. Read app-wide so every surface switches together. */
     val surfaceStyle: StateFlow<SurfaceStyle> =

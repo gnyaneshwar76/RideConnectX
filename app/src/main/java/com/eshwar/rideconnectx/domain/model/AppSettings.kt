@@ -26,9 +26,13 @@ enum class DistanceUnit(val label: String, val short: String) {
     /** "3,000 km" / "1,864 mi" — grouped, because these run to five digits. */
     fun format(km: Int): String = "%,d %s".format(fromKm(km), short)
 
-    private companion object {
+    companion object {
         /** Exact by definition: 1 mile = 1.609344 km. */
-        const val MILES_PER_KM = 1f / 1.609344f
+        private const val MILES_PER_KM = 1f / 1.609344f
+
+        /** Used until the rider chooses: miles in US, GB, Liberia, Myanmar; km elsewhere. */
+        fun defaultForRegion(country: String?): DistanceUnit =
+            if (country?.uppercase() in setOf("US", "GB", "LR", "MM")) MILES else KM
     }
 }
 
@@ -39,25 +43,24 @@ enum class ThemeMode(val label: String) {
 }
 
 /**
- * The accent the whole app is tinted with.
- *
- * Stored as an ARGB value per theme rather than a single colour: a hue that
- * reads well on the dark navy background is often too pale on the light one, so
- * each accent carries both. Blue is the RideConnectX brand and the default.
+ * The accent the whole app is tinted with: one of three calm palettes, chosen by the rider.
+ * Saved by [name]. Any other saved value (the old Cyan, Magenta, Lime...) reads as [DEFAULT].
  */
-enum class AccentColor(
-    val label: String,
-    val darkArgb: Long,
-    val lightArgb: Long,
-) {
-    BLUE("Blue", 0xFF2B7FFF, 0xFF2B7FFF),
-    CYAN("Cyan", 0xFF00C2E0, 0xFF0095BB),
-    MINT("Mint", 0xFF00D9A3, 0xFF009E74),
-    VIOLET("Violet", 0xFF9B6BFF, 0xFF7A45E6),
-    MAGENTA("Magenta", 0xFFFF5FA8, 0xFFD62A7C),
-    AMBER("Amber", 0xFFFFB547, 0xFFC87D00),
-    CORAL("Coral", 0xFFFF7A5A, 0xFFD9482A),
-    LIME("Lime", 0xFF9BE564, 0xFF5C9A1F),
+enum class AccentColor(val label: String, val argb: Long) {
+    CALM_BLUE("Calm blue", 0xFF3B6FD4),
+    SOFT_TEAL("Soft teal", 0xFF2A8C7E),
+    SOFT_INDIGO("Soft indigo", 0xFF5B5FC7),
+    ;
+
+    companion object {
+        val DEFAULT = SOFT_TEAL
+
+        /** The data layer still says AccentColor.BLUE as its fallback; it now means the default. */
+        val BLUE = DEFAULT
+
+        /** Saved name to palette; the default on missing or old values. */
+        fun fromName(name: String?): AccentColor = entries.firstOrNull { it.name == name } ?: DEFAULT
+    }
 }
 
 /**
@@ -155,7 +158,7 @@ data class AppSettings(
     val connectionAlerts: Boolean = true,
 
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val accentColor: AccentColor = AccentColor.BLUE,
+    val accentColor: AccentColor = AccentColor.DEFAULT,
     val fontSize: FontSize = FontSize.MEDIUM,
     val surfaceStyle: SurfaceStyle = SurfaceStyle.FLAT,
     /** null = no mix chosen: accent colour only. */

@@ -1,6 +1,6 @@
 # Privacy Policy — RideConnectX
 
-**Last updated:** 17 October 2026
+**Last updated:** 22 November 2026
 **Contact:** rideconnectx.app@gmail.com
 
 RideConnectX ("the app") connects your phone to your scooter's instrument
@@ -19,7 +19,7 @@ collects, where it goes, and what stays on your phone.
 - Nothing is sold, and nothing is shared with advertisers or data brokers.
 - Notification content is read on-device and relayed to your scooter. It is
   **never** uploaded.
-- The Bluetooth link to the cluster is not encrypted: caller and sender names cross the air in plain text. Names are shown on the cluster and kept in the Notifications page on the phone. Message text is read only to count and alert; it is never stored or uploaded. A name with no Latin letters is shown as the fixed label "New message".
+- The Bluetooth link to the cluster is not encrypted: caller and sender names cross the air in plain text. Only a few kinds of app are read: calls and missed calls (the phone app), the default SMS app, Google Messages, WhatsApp and Telegram (the important ones), and social, calendar, reminder and clock apps (the medium ones). Every other app is ignored: its notifications are never read, stored or sent. Of the apps that are read, only a short preview (60 characters at most) is kept, on the phone, and the list is cleared at midnight every day. Messages that look like a one-time code (OTP) or a bank or UPI text show only the sender name: the text itself is never stored, shown or sent anywhere, and history keeps only the sender name and the label "Message". None of it leaves the phone except the name sent to your scooter. A name with no Latin letters is shown as the fixed label "New message".
 - Report a problem opens your mail app with a pre-filled message; nothing is sent unless you press send.
 - While your scooter is connected, the app records your ride with GPS (precise
   location). The route of a finished ride is saved on your phone. If you do not
@@ -41,13 +41,14 @@ is not shown to any other account signed in on the same phone:
 | Data | Why |
 |---|---|
 | Emergency contacts (name and number you add) | So SOS can offer someone to call — works without internet |
-| Service records, refuelling records | The service screens |
+| Service records | The service screens |
 | Ride history (signed-in users also have a summary copy in their account, section 3) | The ride screens |
-| Notification history (the caller or sender name and the word "Call", "Missed call" or "New message"; never the message text) | The in-app notification list |
+| Notification history, today only (the caller or sender name and the word "Call" or "Missed call", or for a message a short preview of at most 60 characters; deleted before midnight every day; ignored apps are never stored; for one-time-code and bank or UPI texts only the sender name and the label "Message" are kept, never the text) | The in-app notification list |
+| Your per-app switches (app package names with on or off) and the list of important and medium apps that have posted a notification (package names only, never text) | The Settings list of apps that may show on the cluster |
 | Paired vehicle address and name | To reconnect to your scooter |
 | The email address you asked a sign-in link for, the time it was sent, and the times of your last link requests (to enforce a 10-minute link and 5 requests a day) | So opening the link on this phone finishes sign-in without typing it again |
 | App settings and appearance | Your preferences |
-| Ride recorder file (only if you switch **Settings → Ride testing → Ride recorder** on): each Google Maps instruction such as "Turn left onto MG Road", the turn sent to the cluster, the Maps destination text, the caller or sender name of calls and messages (never the message text), and route start and end times. It is a file in the app's own storage folder on the phone, never uploaded, and you can delete it from the same screen. | Checking that the right turns reach the cluster |
+| Ride recorder file (only if you switch **Settings → Ride testing → Ride recorder** on): each Google Maps instruction such as "Turn left onto MG Road", the turn sent to the cluster, the Maps destination text, calls and messages with no names and no text (the file never holds who called or wrote), and route start and end times. It is a file in the app's own storage folder on the phone, never uploaded, and you can delete it from the same screen. | Checking that the right turns reach the cluster |
 
 Backup is disabled, so none of this is copied into Google cloud backup or moved
 in a device-to-device transfer.
@@ -80,7 +81,7 @@ You can use the app as a **guest**, in which case nothing is uploaded at all.
 | Permission | What the app does with it |
 |---|---|
 | **Bluetooth / nearby devices** | Find and connect to your scooter's cluster. Used for nothing else. |
-| **Notification access** | Read the notification that Google Maps posts while navigating, so the next turn can be drawn on your cluster; and detect that a call or message arrived so the cluster's lamp lights. For calls and messages (phone dialer, WhatsApp, SMS and similar apps) the app reads the caller or sender name and, for messages, the message text, and may show them on your cluster. **Content is processed on the phone and sent only to your scooter.** It is never uploaded. |
+| **Notification access** | Read the notification that Google Maps posts while navigating, so the next turn can be drawn on your cluster; and detect that a call or message arrived so the cluster's lamp lights. Only these groups are read: calls and missed calls, the default SMS app, Google Messages, WhatsApp and Telegram (important, shown on the cluster unless you turn the app off), and social, calendar, reminder and clock apps (medium, kept in the in-app list and shown on the cluster only if you turn that app on). All other apps are ignored: never read, stored or sent. For the apps that are read, the app uses the caller or sender name and a short preview of the message (60 characters at most). The preview is kept on the phone for the day only, and for one-time-code and bank or UPI texts only the sender name is used, never the text. **Content is processed on the phone and sent only to your scooter.** It is never uploaded. |
 | **Location** | Sharing your position when *you* tap share on the SOS screen; filling in your city on your profile; while you navigate, comparing your GPS position with the next turn to count down the distance on the cluster (on the phone only, not stored); recording your ride route while the scooter is connected (saved on the phone; uploaded only for rides you keep while signed in); and finding nearby service centres (section 5). On Android 11 and older, Android also requires it for Bluetooth scanning. The app records a route only for the ride while the scooter is connected, and you decide whether to keep it. |
 | **Contacts** | Only when you tap to pick an emergency contact. The app keeps that one contact's name and number. |
 | **Photos** | Only when you choose a profile picture. |
@@ -113,9 +114,11 @@ It uses these outside services:
 
 ## 6. What is never collected
 
-- The text of your messages or calls. A caller or sender name is relayed to the
-  cluster and kept in the in-app notification list on your phone; the message
-  text is neither stored nor uploaded
+- Full message text or call content. A caller or sender name is relayed to the
+  cluster, and a short preview (60 characters at most) is kept in the in-app
+  notification list on your phone for that day only; nothing about notifications
+  is uploaded, and notifications from ignored apps are not even read
+- The history and the list of apps: they never reach Firestore, Analytics or any server
 - Ride log is off by default and stays off until you switch it on.
 - A history of where you have travelled outside rides: routes are recorded only while the scooter is connected, and are uploaded only for rides you keep
 - Your address book as a whole
@@ -126,6 +129,7 @@ It uses these outside services:
 - **Use it as a guest** — nothing is uploaded.
 - **Sign out** — your last readings are saved to your account, and your profile
   and readings are removed from the phone.
+- **Per-app switches** — Settings lists the apps that have posted; turn any of them off or on. Notifications are cleared by the app every day.
 - **Delete local data** — wipes rides, notifications, service records, emergency
   contacts, the paired vehicle, cached readings, the ride log, your avatar and
   profile preferences from the phone.

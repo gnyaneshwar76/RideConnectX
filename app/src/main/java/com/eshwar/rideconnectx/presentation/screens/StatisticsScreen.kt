@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.defaultMinSize
 import com.eshwar.rideconnectx.presentation.theme.RollingText
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import com.eshwar.rideconnectx.presentation.components.dockSpace
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -109,46 +112,27 @@ fun StatisticsScreen(
     val hasLive by remember { androidx.compose.runtime.derivedStateOf { live.value != null } }
     val locationOff by vm.locationOff.collectAsStateWithLifecycle()
 
-    // This screen's background is a dark photograph in *both* app themes, so
-    // its content is on a dark surface regardless of what the rider chose.
-    //
-    // Without this, Light + Glass was unreadable: light-theme text is near
-    // black, the glass fill is a white translucency, and underneath it all sits
-    // a dark mountain at dusk — dark text, on a pale film, on a dark photo.
-    // Forcing the dark tokens here fixes the title, the labels, the glass fill
-    // and the borders in one move, because every one of them keys off `isDark`.
-    CompositionLocalProvider(
-        LocalRcxColors provides RcxDarkColors,
-    ) {
     val c = Rcx.colors
     val unit = LocalDistanceUnit.current
 
     Box(Modifier.fillMaxSize().background(c.bg)) {
-        // Full-bleed, behind everything — the photograph *is* the screen rather
-        // than a 132dp band stuck on top of a list. The scrim over it is the
-        // WCAG-checked floor from the Figma brief (§2C), not a guess: white
-        // 13sp text has to clear 4.5:1 on the bright parts of the image.
-        //
-        // Photo and scrim are blurred together, so the panels sample the image
-        // as the rider actually sees it rather than the raw, brighter original.
-        Box(Modifier.matchParentSize()) {
-            RcxPhotoFill(
-                res = R.drawable.img_statistics_hero,
-                modifier = Modifier.matchParentSize(),
-            )
-            Box(Modifier.matchParentSize().photoScrim())
+        // Follows the rider's light/dark and palette like the other screens: plain
+        // background, with the blurred photo fading in only for Glass.
+        if (LocalStyleMode.current == StyleMode.GLASS) {
+            com.eshwar.rideconnectx.presentation.theme.GlassLightField(photo = R.drawable.img_statistics_hero, accent = c.blue)
         }
 
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .dockSpace()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
             val headerList = androidx.compose.foundation.lazy.rememberLazyListState()
-            BackHeader(title = "Ride Statistics", onBack = onBack, lifted = headerList.canScrollBackward)
+            BackHeader(showBack = false, title = "Ride Statistics", onBack = onBack, lifted = headerList.canScrollBackward)
 
             LazyColumn(
                 state = headerList,
@@ -192,7 +176,7 @@ fun StatisticsScreen(
                         // directly on the photograph — the photo is full-bleed
                         // whether or not the cards are glass, so keying this to
                         // the style mode left it unreadable in Flat.
-                        color = Color.White.copy(alpha = 0.78f),
+                        color = c.muted,
                         modifier = Modifier.padding(top = 6.dp),
                     )
                 }
@@ -205,13 +189,12 @@ fun StatisticsScreen(
             }
         }
     }
-    }
 }
 
 @Composable
 private fun PeriodTabs(active: StatsPeriod, onSelect: (StatsPeriod) -> Unit) {
     val c = Rcx.colors
-    val onPhoto = LocalStyleMode.current == StyleMode.GLASS
+    val onPhoto = false // text follows the theme now, not a dark photo
 
     RcxSurface(corner = 14, tier = GlassTier.HEAVY) {
         Row(
@@ -231,19 +214,22 @@ private fun PeriodTabs(active: StatsPeriod, onSelect: (StatsPeriod) -> Unit) {
                         .padding(vertical = 9.dp),
                     contentAlignment = Alignment.Center,
                 ) {
+                    com.eshwar.rideconnectx.presentation.components.CappedFontScale(1.3f) {
                     Text(
                         p.label,
+                        maxLines = 1,
                         style = RcxType.Label.copy(fontSize = 12.sp),
                         // Unselected labels sit over the photograph, so they
                         // take a light colour rather than the muted one that
                         // was tuned against a flat card.
                         color = when {
-                            on -> Color.White
+                            on -> com.eshwar.rideconnectx.presentation.theme.LocalButtonLook.current.text
                             onPhoto -> Color.White.copy(alpha = 0.75f)
                             else -> c.muted
                         },
                         textAlign = TextAlign.Center,
                     )
+                    }
                 }
             }
         }
@@ -261,12 +247,15 @@ private fun Summary(
     val c = Rcx.colors
     // Everything on this screen now sits on a photograph, so the secondary text
     // takes a light tint instead of the muted grey that was tuned for a card.
-    val onPhoto = LocalStyleMode.current == StyleMode.GLASS
+    val onPhoto = false // text follows the theme now, not a dark photo
     val secondary = if (onPhoto) Color.White.copy(alpha = 0.66f) else c.muted
 
     RcxSurface(modifier, tier = GlassTier.HEAVY) {
         Column(Modifier.padding(14.dp)) {
-            Text(label, style = RcxType.MonoTiny.copy(fontSize = 9.sp), color = secondary)
+            // Capped so "DISTANCE" stays one word at the biggest font size.
+            com.eshwar.rideconnectx.presentation.components.CappedFontScale(1.2f) {
+                Text(label, style = RcxType.MonoTiny.copy(fontSize = 9.sp), color = secondary, maxLines = 1, softWrap = false)
+            }
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.Bottom) {
                 RollingText(value, style = RcxType.Wordmark.copy(fontSize = 20.sp), color = accent)
@@ -388,7 +377,7 @@ private fun RideRow(ride: RideEntity, onClick: () -> Unit) {
 @Composable
 private fun EmptyState(period: StatsPeriod) {
     val c = Rcx.colors
-    val onPhoto = LocalStyleMode.current == StyleMode.GLASS
+    val onPhoto = false // text follows the theme now, not a dark photo
     val secondary = if (onPhoto) Color.White.copy(alpha = 0.66f) else c.muted
 
     RcxSurface(Modifier.fillMaxWidth(), tier = GlassTier.HEAVY) {
@@ -448,7 +437,7 @@ private fun LiveCard(live: LiveRide?, locationOff: Boolean) {
             if (locationOff || live == null) {
                 Text(
                     androidx.compose.ui.res.stringResource(R.string.live_location_off),
-                    style = RcxType.BodySmall.copy(fontSize = 13.sp), color = Color.White,
+                    style = RcxType.BodySmall.copy(fontSize = 13.sp), color = c.text,
                 )
             } else {
                 fun sp(kmh: Int) = unit.fromKm(kmh.toFloat()).roundToInt().toString()

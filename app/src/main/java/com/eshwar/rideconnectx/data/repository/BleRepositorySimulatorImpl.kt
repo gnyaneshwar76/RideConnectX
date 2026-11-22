@@ -22,9 +22,14 @@ import javax.inject.Singleton
 @Singleton
 class BleRepositorySimulatorImpl @Inject constructor(
     private val rideLog: com.eshwar.rideconnectx.data.nav.RideLog,
+    private val sessionDataStore: com.eshwar.rideconnectx.data.local.SessionDataStore,
 ) : BleRepository {
 
     companion object {
+        /** True when a scooter is known and no link is up or starting. */
+        internal fun shouldReconnect(address: String?, state: ConnectionState): Boolean =
+            !address.isNullOrBlank() && state !is ConnectionState.Connected && state !is ConnectionState.Connecting
+
         /** Debug hook (N51): true makes the simulated scan end with nothing found. */
         @Volatile var noScooterInRange: Boolean = false
 
@@ -196,7 +201,13 @@ class BleRepositorySimulatorImpl @Inject constructor(
     private val _telemetry = MutableStateFlow(ScooterTelemetry())
     override val telemetry: Flow<ScooterTelemetry> = _telemetry.asStateFlow()
 
-    override fun reconnectLastDevice() = Unit
+    /** Like the real one: a saved address and no link yet means connect to it now (N108). */
+    override fun reconnectLastDevice() {
+        scope.launch {
+            val address = sessionDataStore.lastDeviceAddress.first()
+            if (shouldReconnect(address, _connectionState.value)) connect(address!!)
+        }
+    }
 
     override fun shutdown() {
         linkJob?.cancel()
@@ -240,6 +251,8 @@ class BleRepositorySimulatorImpl @Inject constructor(
             }
             com.eshwar.rideconnectx.data.ble.LinkDiagnostics.update { it.copy(gattConnected = true, serviceFound = if (it.family == com.eshwar.rideconnectx.domain.ClusterFamily.MOTORCYCLE) false else true) }
             _connectionState.value = ConnectionState.Connected(address, "Simulated Scooter")
+            // The real link saves the paired scooter here; without it nothing can reconnect on app open.
+            sessionDataStore.saveSession(address, deviceName)
             rideLogLink(configureAndDescribe(deviceName))
             // Example readings so the dashboard has something to show.
             _telemetry.value = ScooterTelemetry(

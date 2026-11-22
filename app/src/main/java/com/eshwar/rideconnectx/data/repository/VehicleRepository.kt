@@ -5,6 +5,7 @@ import com.eshwar.rideconnectx.core.di.ApplicationScope
 import com.eshwar.rideconnectx.core.util.ProfilePhotoStore
 import com.eshwar.rideconnectx.data.local.UserPreferencesStore
 import com.eshwar.rideconnectx.data.remote.FirestoreUserDataSource
+import com.eshwar.rideconnectx.domain.model.AutoSetup
 import com.eshwar.rideconnectx.domain.model.Vehicle
 import com.eshwar.rideconnectx.domain.model.VehicleCatalog
 import com.eshwar.rideconnectx.domain.model.VehicleColor
@@ -34,6 +35,7 @@ data class VehicleSelection(
 @Singleton
 class VehicleRepository @Inject constructor(
     private val prefs: UserPreferencesStore,
+    private val session: com.eshwar.rideconnectx.data.local.SessionDataStore,
     private val firestore: FirestoreUserDataSource,
     private val photoStore: ProfilePhotoStore,
     @ApplicationScope private val appScope: CoroutineScope,
@@ -50,6 +52,16 @@ class VehicleRepository @Inject constructor(
                 color = VehicleCatalog.colorById(vId, cId),
             )
         }
+
+    init {
+        // A scooter that connects with no saved model sets it from its Bluetooth name.
+        appScope.launch { session.lastDeviceName.collect { saveModelFromBluetoothName(it) } }
+    }
+
+    /** Unknown name or a model already saved: nothing is saved and nothing is asked. */
+    suspend fun saveModelFromBluetoothName(deviceName: String?) {
+        AutoSetup.vehicleIdFor(deviceName, prefs.selectedVehicleId.first())?.let { prefs.saveVehicle(it) }
+    }
 
     suspend fun selectVehicle(vehicle: Vehicle) = prefs.saveVehicle(vehicle.id)
 

@@ -76,24 +76,21 @@ private fun materialSchemeFrom(c: RcxColors) = if (c.isDark) {
 fun RcxTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     fontScale: Float = 1f,
-    accent: AccentColor = AccentColor.BLUE,
-    /** Chosen mix: its soft gradient fills buttons and its first colour is the accent. */
-    colourMix: ColourMix? = null,
+    accent: AccentColor = AccentColor.DEFAULT,
+    /** Retired: loud gradients are no longer offered, so a mix saved by an old version is ignored. */
+    @Suppress("UNUSED_PARAMETER") colourMix: ColourMix? = null,
     buttonStyle: ButtonStyle = ButtonStyle.SOLID,
     content: @Composable () -> Unit,
 ) {
     val base = if (darkTheme) RcxDarkColors else RcxLightColors
-    val bgArgb = base.bg.toArgb().toLong() and 0xFFFFFFFFL
-    // Soft first colour, nudged until it reads as text on this theme's background.
-    val mixAccent = colourMix?.let { Color(readableOn(soft(it.colours.first()), bgArgb)) }
-    // The accent replaces `blue` everywhere, which is what every screen tints
-    // itself with. Borders and the glow are derived from it too, or a green
-    // accent would still sit inside blue-tinted card outlines.
-    val accentColor = mixAccent ?: Color(if (darkTheme) accent.darkArgb else accent.lightArgb)
-    val colors = if (mixAccent == null && accent == AccentColor.BLUE) base else base.copy(
-        blue = accentColor,
-        border = accentColor.copy(alpha = if (darkTheme) 0.15f else 0.16f),
-        glow = accentColor.copy(alpha = if (darkTheme) 0.30f else 0.09f),
+    // Accent as small text/icons must reach 4.5:1 on the surface it sits on, so it is nudged
+    // only when it falls short. Buttons and swatches keep the exact palette colour.
+    val surfaceArgb = (if (darkTheme) base.card else base.bg).toArgb().toLong() and 0xFFFFFFFFL
+    val textAccent = Color(readableOn(accent.argb, surfaceArgb))
+    val colors = base.copy(
+        blue = textAccent,
+        cyan = textAccent,
+        glow = Color(accent.argb).copy(alpha = if (darkTheme) 0.30f else 0.09f),
     )
     val density = LocalDensity.current
     val scaled = Density(
@@ -105,8 +102,7 @@ fun RcxTheme(
     // only picks black or white text and never darkens it (any colour gives one
     // of the two 4.5:1; see ColourMathTest). The old dark-blue second stop is
     // what forced amber and lime to be darkened to brown.
-    val accentArgb = colors.blue.toArgb().toLong() and 0xFFFFFFFFL
-    val fill = readableFill(colourMix?.colours?.map { soft(it) } ?: listOf(accentArgb, accentArgb))
+    val fill = readableFill(listOf(accent.argb, accent.argb))
     val buttonLook = ButtonLook(fill.colours.map { Color(it) }, Color(fill.text), buttonStyle)
 
     CompositionLocalProvider(

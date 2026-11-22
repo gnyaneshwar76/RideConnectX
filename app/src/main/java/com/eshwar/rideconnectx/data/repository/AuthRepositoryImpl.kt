@@ -14,6 +14,7 @@ import com.eshwar.rideconnectx.domain.model.AuthState
 import com.eshwar.rideconnectx.domain.model.CloudProfile
 import com.eshwar.rideconnectx.domain.model.HandoverAction
 import com.eshwar.rideconnectx.domain.model.ProfileHandover
+import com.eshwar.rideconnectx.domain.model.AutoSetup
 import com.eshwar.rideconnectx.domain.model.GuestNameRules
 import com.eshwar.rideconnectx.domain.model.LoginMethod
 import com.eshwar.rideconnectx.domain.model.EmailLinkFlow
@@ -187,6 +188,17 @@ class AuthRepositoryImpl @Inject constructor(
                 ),
             ).onFailure { Log.w(TAG, "Sign-in record not saved", it) }
         }
+    }
+
+    override suspend fun ensureGuest() {
+        if (AutoSetup.needsGuest(prefs.session.first())) {
+            continueAsGuest(AutoSetup.GUEST_NAME)
+            // carry + completed: a later Google sign-in keeps this guest's data (ProfileHandover CARRY or ASK).
+            prefs.setProfileOwner(GUEST, carry = true)
+            prefs.setProfileCompleted(true)
+        }
+        prefs.setOnboardingCompleted(true)
+        sessionStore.saveOnboardingStatus(com.eshwar.rideconnectx.domain.model.OnboardingStatus.FINISHED.name)
     }
 
     override suspend fun continueAsGuest(name: String): AuthResult {

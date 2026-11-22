@@ -52,6 +52,6 @@ enum class NotificationKind {
     /** Phone call. Store sender as title and a generic body only ("Missed call"). */
     CALL,
 
-    /** Phone message. Store sender as title and "New message" only, never the text. */
+    /** Phone message. Store sender as title and a short preview (max 60 chars, AppTiers.preview), never the full text. */
     MESSAGE,
 }

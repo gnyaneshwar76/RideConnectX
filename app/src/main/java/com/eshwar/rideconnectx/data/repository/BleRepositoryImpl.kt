@@ -129,7 +129,7 @@ class BleRepositoryImpl @Inject constructor(
                     connected = _connectionState.value is ConnectionState.Connected,
                     dormant = dormant,
                     userDisconnected = userDisconnected,
-                    autoConnect = appSettings.settings.first().autoConnect,
+                    autoConnect = true, // always on, no switch (22 Nov 2026)
                     hasAddress = !address.isNullOrBlank(),
                     connectInProgress = bleService?.connectInProgress == true,
                 )

@@ -1,5 +1,7 @@
 package com.eshwar.rideconnectx.presentation.screens
 
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.components.contentWidth
 import com.eshwar.rideconnectx.presentation.theme.mainButtonFill
 
 import androidx.compose.foundation.layout.defaultMinSize
@@ -34,6 +36,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import com.eshwar.rideconnectx.presentation.components.dockSpace
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -63,6 +66,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import com.eshwar.rideconnectx.core.util.AppPermissions
+import com.eshwar.rideconnectx.core.util.PermState
+import com.eshwar.rideconnectx.core.util.rememberPermissionsController
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -108,8 +114,31 @@ fun BlePairingScreen(
     val state by vm.uiState.collectAsStateWithLifecycle()
     val services = rememberSystemServices()
 
-    DisposableEffect(Unit) {
-        vm.onIntent(ScanUiIntent.StartScan)
+    // Permissions are asked here, when the rider connects (real Android pop-ups, one at a time):
+    // Bluetooth (location before Android 12, where scanning needs it), then post-notifications.
+    val perms = rememberPermissionsController()
+    val scanPerm = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+        AppPermissions.bluetooth else AppPermissions.location
+    val scanState = perms.state(scanPerm)
+    val notifState = perms.state(AppPermissions.notifications)
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        // Back from App Settings: read the real state again, no button to press.
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) perms.refresh()
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+    LaunchedEffect(scanState, notifState) {
+        if (scanState == PermState.Idle) perms.request(scanPerm)
+        else if (scanState == PermState.Granted && notifState == PermState.Idle && !perms.answered(AppPermissions.notifications))
+            perms.request(AppPermissions.notifications)
+    }
+    val scanAllowed = scanState == PermState.Granted
+
+    DisposableEffect(scanAllowed) {
+        if (scanAllowed) vm.onIntent(ScanUiIntent.StartScan)
         onDispose { vm.onIntent(ScanUiIntent.StopScan) }
     }
 
@@ -133,12 +162,13 @@ fun BlePairingScreen(
         Column(
             Modifier
                 .fillMaxHeight()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .widthIn(max = 600.dp)
+                .safeDrawingCentred()
+                .dockSpace()
+                .contentWidth()
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
-            BackHeader(title = "Pair Your Vehicle", onBack = onBack)
+            BackHeader(showBack = false, title = "Pair Your Vehicle", onBack = onBack)
 
             Text(
                 "Ensure your vehicle's ignition is on",
@@ -186,6 +216,15 @@ fun BlePairingScreen(
             Spacer(Modifier.height(16.dp))
 
             when {
+                // Refused: one short line and a way back, never a dead end.
+                scanState == PermState.Denied || scanState == PermState.PermanentlyDenied -> SystemWarning(
+                    message = "Allow Bluetooth to find your vehicle.",
+                    action = if (scanState == PermState.PermanentlyDenied) "Open settings" else "Allow",
+                    onAction = {
+                        if (scanState == PermState.PermanentlyDenied) perms.openAppSettings()
+                        else perms.request(scanPerm)
+                    },
+                )
                 // These used to be dead text. They now do the thing they ask
                 // for — the app cannot flip the radio itself, so it opens the
                 // system UI that can.

@@ -45,8 +45,8 @@ fun NotificationAccessWarning(modifier: Modifier = Modifier) {
     val access = rememberNotificationAccess()
     if (access.granted) return
     WarningCard(
-        title = "Notification access is off",
-        body = "Turns, call and message alerts can't reach your scooter. Tap to turn it on.",
+        title = "Reading Maps and calls is off",
+        body = "Notification access for RideConnectX is off, so turns, call and message alerts can't reach your scooter. Tap to turn it on.",
         onClick = access.openSettings,
         modifier = modifier,
     )

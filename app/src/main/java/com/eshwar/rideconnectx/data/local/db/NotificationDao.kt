@@ -14,6 +14,14 @@ interface NotificationDao {
     @Query("SELECT * FROM notifications WHERE ownerId = :owner ORDER BY createdAt DESC LIMIT 500")
     fun observeAll(owner: String): Flow<List<NotificationEntity>>
 
+    /** Today only: [since] = local midnight in epoch millis (compute it with java.time so a timezone change is safe). */
+    @Query("SELECT * FROM notifications WHERE ownerId = :owner AND createdAt >= :since ORDER BY createdAt DESC LIMIT 500")
+    fun observeSince(owner: String, since: Long): Flow<List<NotificationEntity>>
+
+    /** Daily clear: everything before [midnight], for every owner. */
+    @Query("DELETE FROM notifications WHERE createdAt < :midnight")
+    suspend fun deleteBefore(midnight: Long)
+
     /** Retention: rows older than [cutoff] and anything beyond the newest [keep] go (N91 default: 90 days or 500). */
     @Query(
         "DELETE FROM notifications WHERE createdAt < :cutoff OR id NOT IN " +

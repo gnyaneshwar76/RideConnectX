@@ -2,6 +2,15 @@
 
 All notable changes to RideConnectX. Format: Keep a Changelog. Versions follow the release tag.
 
+## [1.0.7-tester] - 2026-11-25 (testers only)
+
+### Changed
+- First open is now Welcome, Start, Home (guest "Rider"); an optional "Sign in" link is on the Welcome page.
+- Notifications: calls, missed calls, SMS, WhatsApp and Telegram are Important and on by default; Social and Calendar are Medium and off; everything else is ignored. Settings has an auto-filled "Alert apps" list. History clears every day.
+- Code and bank texts show only the sender name on the cluster and in history; the text is never sent or stored.
+- Samsung dialer and messages are recognised. Permissions use the normal Android pop-ups. Auto-connect is always on.
+- Landscape screens are centred, including on phones with 3-button navigation. Privacy text updated.
+
 ## [1.0.6-tester] - 2026-11-06 (testers only, diagnostic build)
 
 ### Improved

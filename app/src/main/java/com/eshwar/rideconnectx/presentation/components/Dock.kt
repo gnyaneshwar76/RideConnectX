@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -98,15 +100,22 @@ fun Modifier.contentWidth(): Modifier = composed {
 }
 
 /**
- * safeDrawing insets with the left and right sides made equal (the larger one), so a
- * one-sided cutout in landscape does not push the centred content column off-centre.
+ * safeDrawing insets, but the display cutout is made equal on both sides (the larger one), so a
+ * one-sided cutout does not push the content off-centre. System bars (a landscape 3-button nav
+ * bar sits on one side) keep their real size, so the content is centred in the visible area.
  */
 fun Modifier.safeDrawingCentred(): Modifier = composed {
     val d = androidx.compose.ui.platform.LocalLayoutDirection.current
-    val p = androidx.compose.foundation.layout.WindowInsets.safeDrawing.asPaddingValues()
-    val h = maxOf(p.calculateLeftPadding(d), p.calculateRightPadding(d))
-    consumeWindowInsets(androidx.compose.foundation.layout.WindowInsets.safeDrawing)
-        .padding(start = h, end = h, top = p.calculateTopPadding(), bottom = p.calculateBottomPadding())
+    val w = androidx.compose.foundation.layout.WindowInsets.Companion
+    val p = w.safeDrawing.asPaddingValues()
+    val cut = w.displayCutout.asPaddingValues()
+    val bars = w.systemBars.asPaddingValues()
+    val c = maxOf(cut.calculateLeftPadding(d), cut.calculateRightPadding(d))
+    consumeWindowInsets(w.safeDrawing).padding(
+        start = maxOf(c, bars.calculateLeftPadding(d)),
+        end = maxOf(c, bars.calculateRightPadding(d)),
+        top = p.calculateTopPadding(), bottom = p.calculateBottomPadding(),
+    )
 }
 
 private class DockTab(val route: String, val icon: ImageVector, val label: Int, val desc: Int)

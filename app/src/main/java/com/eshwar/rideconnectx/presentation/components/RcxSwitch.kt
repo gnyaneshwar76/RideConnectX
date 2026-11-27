@@ -50,7 +50,7 @@ fun RcxSwitch(
 
     val track by animateColorAsState(
         // CEO 10 Oct: the switch follows the accent / colour mix (c.blue is the accent).
-        if (checked) c.blue else c.muted.copy(alpha = 0.28f),
+        if (checked) c.blue else c.muted.copy(alpha = 0.75f),
         tween(250),
         label = "switchTrack",
     )

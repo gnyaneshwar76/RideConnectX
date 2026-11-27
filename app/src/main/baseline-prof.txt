@@ -1,0 +1,27 @@
+# Hand-written startup/navigation profile (no generator run). H=hot S=startup P=post-startup.
+# Wildcards are expanded by AGP/R8 against the final (renamed) dex.
+HSPLcom/eshwar/rideconnectx/MainActivity;->**(**)**
+HSPLcom/eshwar/rideconnectx/RideConnectXApp;->**(**)**
+HSPLcom/eshwar/rideconnectx/presentation/navigation/**;->**(**)**
+HSPLcom/eshwar/rideconnectx/presentation/theme/**;->**(**)**
+HSPLcom/eshwar/rideconnectx/presentation/components/**;->**(**)**
+HSPLcom/eshwar/rideconnectx/presentation/viewmodel/**;->**(**)**
+HSPLcom/eshwar/rideconnectx/presentation/screens/DashboardScreen**;->**(**)**
+HSPLcom/eshwar/rideconnectx/presentation/screens/HomeParts**;->**(**)**
+HSPLcom/eshwar/rideconnectx/presentation/screens/BlePairingScreen**;->**(**)**
+HSPLcom/eshwar/rideconnectx/presentation/screens/NavigationScreen**;->**(**)**
+HSPLcom/eshwar/rideconnectx/presentation/screens/StatisticsScreen**;->**(**)**
+HSPLcom/eshwar/rideconnectx/presentation/screens/SettingsScreen**;->**(**)**
+HSPLcom/eshwar/rideconnectx/presentation/screens/SplashScreen**;->**(**)**
+HSPLcom/eshwar/rideconnectx/data/local/**;->**(**)**
+HSPLcom/eshwar/rideconnectx/data/repository/**;->**(**)**
+HSPLcom/eshwar/rideconnectx/domain/**;->**(**)**
+HSPLandroidx/compose/**;->**(**)**
+HSPLandroidx/navigation/**;->**(**)**
+HSPLandroidx/lifecycle/**;->**(**)**
+HSPLandroidx/activity/**;->**(**)**
+HSPLandroidx/datastore/**;->**(**)**
+HSPLdev/chrisbanes/haze/**;->**(**)**
+Lcom/eshwar/rideconnectx/**;
+Landroidx/compose/**;
+Landroidx/navigation/**;

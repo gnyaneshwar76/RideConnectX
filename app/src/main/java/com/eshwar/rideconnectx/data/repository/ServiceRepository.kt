@@ -61,7 +61,8 @@ class ServiceRepository @Inject constructor(
         prefs.lastKnownOdometerKm,
         prefs.intervalKm,
         prefs.intervalDays,
-    ) { latest, odo, intervalKm, intervalDays ->
+        prefs.remindBeforeKm,
+    ) { latest, odo, intervalKm, intervalDays, remindBeforeKm ->
         ServiceStatus(
             lastServiceOdometerKm = latest?.odometerKm,
             lastServiceAt = latest?.servicedAt,
@@ -70,6 +71,7 @@ class ServiceRepository @Inject constructor(
             currentOdometerKm = maxOf(odo, latest?.odometerKm ?: 0),
             intervalKm = intervalKm,
             intervalDays = intervalDays,
+            remindBeforeKm = remindBeforeKm,
         )
     }
 
@@ -180,6 +182,9 @@ class ServiceRepository @Inject constructor(
     suspend fun deleteRecord(record: ServiceRecordEntity) = dao.delete(record)
 
     suspend fun setRemindersEnabled(enabled: Boolean) = prefs.setRemindersEnabled(enabled)
+
+    val remindBeforeKm: Flow<Int> = prefs.remindBeforeKm
+    suspend fun setRemindBeforeKm(km: Int) = prefs.setRemindBeforeKm(km)
 
     val centrePlace: Flow<Pair<String, String>> = prefs.centrePlace
     suspend fun setCentrePlace(state: String, city: String) = prefs.setCentrePlace(state, city)

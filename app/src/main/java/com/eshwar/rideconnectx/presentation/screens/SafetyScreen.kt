@@ -314,7 +314,7 @@ fun SafetyScreen(
             BackHeader(title = stringResource(R.string.safety_title), onBack = onBack, lifted = headerList.canScrollBackward)
 
             val refreshContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
-            com.eshwar.rideconnectx.presentation.components.RideRefreshBox(onRefresh = {
+            com.eshwar.rideconnectx.presentation.components.RideRefreshBox(modifier = Modifier.weight(1f), onRefresh = {
                 // Re-checks what is due, so a reminder that has come up appears now.
                 dagger.hilt.android.EntryPointAccessors.fromApplication(
                     refreshContext, com.eshwar.rideconnectx.core.di.ServiceEntryPoint::class.java,
@@ -400,43 +400,6 @@ fun SafetyScreen(
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                         )
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            // Choosing from the phone is the path almost everyone
-                            // wants; typing a number stays available beneath it.
-                            PrimaryButton(
-                                label = stringResource(R.string.safety_choose_contacts),
-                                // Android asks first; see requestContacts above.
-                                onClick = {
-                                    requestContacts.launch(Manifest.permission.READ_CONTACTS)
-                                },
-                                icon = {
-                                    Icon(
-                                        Icons.Filled.Contacts, null,
-                                        Modifier.size(18.dp), tint = androidx.compose.material3.LocalContentColor.current,
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            PrimaryButton(
-                                label = stringResource(R.string.safety_enter_manually),
-                                onClick = {
-                                    contactError = null
-                                    editing = EmergencyContactEntity(
-                                        ownerId = OwnerScope.DRAFT,
-                                        name = "", phone = "", normalizedPhone = "",
-                                    )
-                                },
-                                secondary = true,
-                                icon = {
-                                    Icon(
-                                        Icons.Filled.Add, null,
-                                        Modifier.size(18.dp), tint = c.blue,
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
                     }
                 }
 
@@ -444,6 +407,42 @@ fun SafetyScreen(
                     ShareLocationToggle(enabled = shareLocation, onToggle = vm::setShareLocation)
                 }
             }
+            }
+            // Choosing from the phone is the path almost everyone wants; typing a
+            // number stays available beneath it. Pinned, so it is always reachable.
+            if (!contactsFull) com.eshwar.rideconnectx.presentation.components.BottomActions {
+                PrimaryButton(
+                    label = stringResource(R.string.safety_choose_contacts),
+                    // Android asks first; see requestContacts above.
+                    onClick = {
+                        requestContacts.launch(Manifest.permission.READ_CONTACTS)
+                    },
+                    icon = {
+                        Icon(
+                            Icons.Filled.Contacts, null,
+                            Modifier.size(18.dp), tint = androidx.compose.material3.LocalContentColor.current,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                PrimaryButton(
+                    label = stringResource(R.string.safety_enter_manually),
+                    onClick = {
+                        contactError = null
+                        editing = EmergencyContactEntity(
+                            ownerId = OwnerScope.DRAFT,
+                            name = "", phone = "", normalizedPhone = "",
+                        )
+                    },
+                    secondary = true,
+                    icon = {
+                        Icon(
+                            Icons.Filled.Add, null,
+                            Modifier.size(18.dp), tint = c.blue,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

@@ -19,6 +19,8 @@ data class ServiceStatus(
     val currentOdometerKm: Int = 0,
     val intervalKm: Int = 3_000,
     val intervalDays: Int = 90,
+    /** Reminder distance the rider chose (100/200/500 km); 0 = the old rule, 10% of the interval. */
+    val remindBeforeKm: Int = 0,
 ) {
     /** Without a service record there is no baseline to count from. */
     val hasBaseline: Boolean get() = lastServiceOdometerKm != null && lastServiceAt != null
@@ -71,9 +73,17 @@ data class ServiceStatus(
         get() = (remainingKm?.let { it <= 0 } ?: false) ||
             (remainingDays?.let { it <= 0 } ?: false)
 
-    /** Due soon enough to warn about: within 10% of the interval. */
+    /** Due soon enough to warn about: within the chosen km, or 90% of the days; without a choice, 10% of the interval. */
     val isDueSoon: Boolean
-        get() = !isOverdue && progress >= 0.9f
+        get() {
+            if (isOverdue) return false
+            val km = remainingKm
+            if (remindBeforeKm <= 0 || km == null) return progress >= 0.9f
+            val byTime = lastServiceAt?.let {
+                (System.currentTimeMillis() - it).toFloat() / TimeUnit.DAYS.toMillis(intervalDays.toLong())
+            } ?: 0f
+            return km <= remindBeforeKm || byTime >= 0.9f
+        }
 }
 
 /**

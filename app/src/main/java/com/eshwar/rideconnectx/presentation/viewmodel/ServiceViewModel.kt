@@ -209,6 +209,13 @@ class ServiceViewModel @Inject constructor(
         appScope.launch { repository.setCentrePlace(state, city) }
     }
 
+    val remindBeforeKm: StateFlow<Int> = repository.remindBeforeKm
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 200)
+
+    fun setRemindBeforeKm(km: Int) {
+        appScope.launch { repository.setRemindBeforeKm(km) }
+    }
+
     fun setRemindersEnabled(enabled: Boolean) {
         appScope.launch { repository.setRemindersEnabled(enabled) }
     }

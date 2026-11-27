@@ -183,6 +183,12 @@ Read-only pass by rcx-design (code and the 13 Oct screenshots `20261013-rcx-test
 2. **Small text on Notifications.** Kind labels ("MESSAGE", "MISSED CALL") and times are 10 sp; body 12 sp. Options: (a) leave; (b) 11 sp floor for every row label (same floor as Part 2 item 6); (c) 12 sp for labels, 13 sp body. I would pick (b): the label is the only thing that tells a call from a message at a glance.
 3. **Icon shape for call and message rows.** Already built: circle for people, rounded square for apps. Options: (a) keep; (b) add a small glyph badge; (c) colour only. I would pick (a): no new look needed.
 
+## 26 Nov 2026: review of 1.0.7-tester rider walks (A16, A17)
+Full report with options: `.claude/team/reports/20261126-design-review.md` (local, git-ignored). Owner decisions open:
+first-run setup for notification access; Home scooter card size and dark glow; Rides "RIDING NOW" card; About connection
+details; Welcome chip and subtitle; Appearance order; SOS feedback and contact button; Settings tester words; landscape
+Bike layout (must scroll either way).
+
 ## Not checked (say so)
 - Contrast of the red "Clear" and "Permanently denied" text (11 sp muted on a red tint) and of the blue header actions. Estimated only; not measured.
 - Permissions screen background-run row (`PermissionDetailsScreen.kt` ~line 178) only read from code; the button there was not measured.

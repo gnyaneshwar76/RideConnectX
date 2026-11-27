@@ -29,11 +29,15 @@ import com.eshwar.rideconnectx.data.local.db.NotificationKind
 import com.eshwar.rideconnectx.domain.model.AuthState
 import com.eshwar.rideconnectx.domain.model.LegalDoc
 import com.eshwar.rideconnectx.presentation.screens.AboutScreen
+import com.eshwar.rideconnectx.presentation.screens.AlertsScreen
+import com.eshwar.rideconnectx.presentation.screens.DiagnosticsScreen
 import com.eshwar.rideconnectx.presentation.screens.AppearanceScreen
 import com.eshwar.rideconnectx.presentation.screens.BlePairingScreen
 import com.eshwar.rideconnectx.presentation.screens.CreateProfileScreen
 import com.eshwar.rideconnectx.presentation.screens.DashboardScreen
+import com.eshwar.rideconnectx.presentation.screens.MyScooterScreen
 import com.eshwar.rideconnectx.presentation.screens.LegalScreen
+import com.eshwar.rideconnectx.presentation.screens.PrivacyTermsScreen
 import com.eshwar.rideconnectx.presentation.screens.NavigationScreen
 import com.eshwar.rideconnectx.presentation.screens.NotificationsScreen
 import com.eshwar.rideconnectx.presentation.screens.PermissionDetailsScreen
@@ -76,8 +80,13 @@ object Routes {
     const val SAFETY = "safety"
     const val SETTINGS = "settings"
     const val PROFILE = "profile"
+    /** Picture, details, Connect and Forget for the paired scooter; opened from Settings. */
+    const val MY_SCOOTER = "my_scooter"
+    const val ALERTS = "alerts"
+    const val DIAGNOSTICS = "diagnostics"
     const val APPEARANCE = "appearance"
     const val ABOUT = "about"
+    const val PRIVACY_TERMS = "privacy_terms"
 
     /**
      * The reference page, reached from Settings. Permissions are asked
@@ -110,22 +119,34 @@ internal fun isTabSwitch(from: String?, to: String?): Boolean =
     from != null && to != null && from != to && from in DockRoutes && to in DockRoutes
 
 /**
- * A second tap during the screen transition is ignored (CHK-27): only the
- * screen that is fully on top may navigate. Without it a double tap on Back
- * popped two screens and a double tap on a card stacked the same screen twice.
+ * The first tap always works, also while a screen transition runs (the old
+ * "must be RESUMED" guard swallowed taps on slow frames). Double fire is stopped
+ * differently: go() uses launchSingleTop and a same-route check, Back is
+ * debounced (a second Back from the screen that is still fading out would pop
+ * two screens).
  */
-private fun NavController.onTop() =
-    currentBackStackEntry?.lifecycle?.currentState == androidx.lifecycle.Lifecycle.State.RESUMED
+private var lastBackMs = 0L
 
-private fun NavController.safeBack() { if (onTop()) popBackStack() }
+private fun NavController.safeBack() {
+    val now = android.os.SystemClock.uptimeMillis()
+    if (now - lastBackMs < 350) return
+    lastBackMs = now
+    popBackStack()
+}
+
+/** Sign In after a sign-out: Welcome sits underneath, so Back has somewhere to go. */
+private fun NavController.goSignInFresh() {
+    navigate(Routes.INTRO) { popUpTo(0) { inclusive = true } }
+    navigate(Routes.SIGN_IN)
+}
 
 private fun NavController.safeGo(route: String) {
-    if (onTop()) navigate(route) { launchSingleTop = true }
+    if (currentDestination?.route != route) navigate(route) { launchSingleTop = true }
 }
 
 /** Dock tab: one entry per tab, Back from any tab lands on Home (N49 keeps Home as the exit). */
 private fun NavController.goTab(route: String) {
-    if (onTop() && currentDestination?.route != route) {
+    if (currentDestination?.route != route) {
         navigate(route) {
             launchSingleTop = true
             popUpTo(Routes.DASHBOARD)
@@ -217,7 +238,7 @@ fun NavGraph(
                 onStart = {
                     scope.launch {
                         authVm.ensureGuest()
-                        if (navController.onTop()) navController.navigate(Routes.DASHBOARD) { popUpTo(0) { inclusive = true } }
+                        if (navController.currentDestination?.route == Routes.INTRO) navController.navigate(Routes.DASHBOARD) { popUpTo(0) { inclusive = true } }
                     }
                 },
                 // Back from Sign In pops to Welcome; success is handled by the SIGN_IN route.
@@ -258,6 +279,10 @@ fun NavGraph(
                 },
                 onTerms = { navController.safeGo(Routes.TERMS) },
                 onPrivacy = { navController.safeGo(Routes.PRIVACY) },
+                onBack = {
+                    if (navController.previousBackStackEntry != null) navController.safeBack()
+                    else navController.navigate(Routes.INTRO) { popUpTo(0) { inclusive = true } }
+                },
                 vm = authVm,
             )
         }
@@ -361,13 +386,30 @@ fun NavGraph(
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 onBack = { navController.safeBack() },
-                onAppearance = { navController.safeGo(Routes.APPEARANCE) },
-                onAbout = { navController.safeGo(Routes.ABOUT) },
-                onPermissions = { navController.safeGo(Routes.PERMISSION_DETAILS) },
-                onPrivacy = { navController.safeGo(Routes.PRIVACY) },
-                onTerms = { navController.safeGo(Routes.TERMS) },
-                onPairVehicle = { navController.safeGo(Routes.BLE) },
                 onProfile = { navController.safeGo(Routes.PROFILE) },
+                onMyScooter = { navController.safeGo(Routes.MY_SCOOTER) },
+                onService = { navController.safeGo(Routes.SERVICE) },
+                onAlerts = { navController.safeGo(Routes.ALERTS) },
+                onAppearance = { navController.safeGo(Routes.APPEARANCE) },
+                onPermissions = { navController.safeGo(Routes.PERMISSION_DETAILS) },
+                onPrivacy = { navController.safeGo(Routes.PRIVACY_TERMS) },
+                onAbout = { navController.safeGo(Routes.ABOUT) },
+                onDiagnostics = { navController.safeGo(Routes.DIAGNOSTICS) },
+            )
+        }
+
+        composable(Routes.ALERTS) {
+            AlertsScreen(onBack = { navController.safeBack() })
+        }
+
+        composable(Routes.DIAGNOSTICS) {
+            DiagnosticsScreen(onBack = { navController.safeBack() })
+        }
+
+        composable(Routes.MY_SCOOTER) {
+            MyScooterScreen(
+                onBack = { navController.safeBack() },
+                onPairVehicle = { navController.safeGo(Routes.BLE) },
             )
         }
 
@@ -380,10 +422,15 @@ fun NavGraph(
         }
 
         composable(Routes.ABOUT) {
-            AboutScreen(
+            AboutScreen(onBack = { navController.safeBack() })
+        }
+
+        composable(Routes.PRIVACY_TERMS) {
+            PrivacyTermsScreen(
                 onBack = { navController.safeBack() },
                 onPrivacy = { navController.safeGo(Routes.PRIVACY) },
                 onTerms = { navController.safeGo(Routes.TERMS) },
+                onSignedOut = { navController.goSignInFresh() },
             )
         }
 
@@ -394,9 +441,7 @@ fun NavGraph(
                 onSignedOut = {
                     // Everything behind the account goes with it, so the whole
                     // back stack is cleared rather than left to be popped into.
-                    navController.navigate(Routes.SIGN_IN) {
-                        popUpTo(0) { inclusive = true }
-                    }
+                    navController.goSignInFresh()
                 },
             )
         }

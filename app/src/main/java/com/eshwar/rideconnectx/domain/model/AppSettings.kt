@@ -53,7 +53,7 @@ enum class AccentColor(val label: String, val argb: Long) {
     ;
 
     companion object {
-        val DEFAULT = SOFT_TEAL
+        val DEFAULT = CALM_BLUE
 
         /** The data layer still says AccentColor.BLUE as its fallback; it now means the default. */
         val BLUE = DEFAULT
@@ -156,6 +156,12 @@ data class AppSettings(
 
     val rideNotifications: Boolean = true,
     val connectionAlerts: Boolean = true,
+
+    /** Alerts page: master switch, Important tier, Medium tier, name-only text. */
+    val alertsCluster: Boolean = true,
+    val alertsImportant: Boolean = true,
+    val alertsMedium: Boolean = false,
+    val alertsNameOnly: Boolean = false,
 
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val accentColor: AccentColor = AccentColor.DEFAULT,

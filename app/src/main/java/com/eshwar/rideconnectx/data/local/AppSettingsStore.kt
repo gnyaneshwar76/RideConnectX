@@ -64,6 +64,12 @@ class AppSettingsStore @Inject constructor(
         const val APP_SWITCH_PREFIX = "notif_app_"
         val SEEN_PACKAGES = androidx.datastore.preferences.core.stringSetPreferencesKey("notif_seen_packages")
 
+        // Alerts on the scooter (switches and a choice only; no notification text is stored)
+        val ALERTS_CLUSTER = booleanPreferencesKey("alerts_cluster")
+        val ALERTS_IMPORTANT = booleanPreferencesKey("alerts_important")
+        val ALERTS_MEDIUM = booleanPreferencesKey("alerts_medium")
+        val ALERTS_NAME_ONLY = booleanPreferencesKey("alerts_name_only")
+
         // Appearance
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val ACCENT = stringPreferencesKey("accent_color")
@@ -83,6 +89,10 @@ class AppSettingsStore @Inject constructor(
             autoConnect = true,
             rideNotifications = p[RIDE_NOTIFICATIONS] ?: true,
             connectionAlerts = p[CONNECTION_ALERTS] ?: true,
+            alertsCluster = p[ALERTS_CLUSTER] ?: true,
+            alertsImportant = p[ALERTS_IMPORTANT] ?: true,
+            alertsMedium = p[ALERTS_MEDIUM] ?: false,
+            alertsNameOnly = p[ALERTS_NAME_ONLY] ?: false,
             themeMode = p[THEME_MODE].toEnum(ThemeMode.SYSTEM),
             accentColor = p[ACCENT].toEnum(AccentColor.BLUE),
             fontSize = p[FONT_SIZE].toEnum(FontSize.MEDIUM),
@@ -170,6 +180,15 @@ class AppSettingsStore @Inject constructor(
 
     suspend fun setRideNotifications(on: Boolean) = put(RIDE_NOTIFICATIONS, on)
     suspend fun setConnectionAlerts(on: Boolean) = put(CONNECTION_ALERTS, on)
+
+    val alertsCluster: Flow<Boolean> = context.appSettings.data.map { it[ALERTS_CLUSTER] ?: true }
+    val alertsImportant: Flow<Boolean> = context.appSettings.data.map { it[ALERTS_IMPORTANT] ?: true }
+    val alertsMedium: Flow<Boolean> = context.appSettings.data.map { it[ALERTS_MEDIUM] ?: false }
+    val alertsNameOnly: Flow<Boolean> = context.appSettings.data.map { it[ALERTS_NAME_ONLY] ?: false }
+    suspend fun setAlertsCluster(on: Boolean) = put(ALERTS_CLUSTER, on)
+    suspend fun setAlertsImportant(on: Boolean) = put(ALERTS_IMPORTANT, on)
+    suspend fun setAlertsMedium(on: Boolean) = put(ALERTS_MEDIUM, on)
+    suspend fun setAlertsNameOnly(on: Boolean) = put(ALERTS_NAME_ONLY, on)
 
     suspend fun setThemeMode(mode: ThemeMode) = put(THEME_MODE, mode.name)
     suspend fun setAccentColor(accent: AccentColor) = put(ACCENT, accent.name)

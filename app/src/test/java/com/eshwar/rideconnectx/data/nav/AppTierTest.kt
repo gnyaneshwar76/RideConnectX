@@ -114,4 +114,22 @@ class AppTierTest {
     @Test fun previewKeepsAllWords() {
         assertEquals("Your parcel is at the gate", AppTiers.preview("Your parcel is at the gate"))
     }
+
+    @Test fun masterOffKeepsHistoryButNeverCluster() {
+        val r = AppTiers.route(AppTier.IMPORTANT, switch = true, master = false)
+        assertEquals(AppTiers.Route(store = true, cluster = false), r)
+    }
+
+    @Test fun tierSwitchesApplyOnlyWithoutPerAppSwitch() {
+        assertEquals(false, AppTiers.route(AppTier.IMPORTANT, null, importantOn = false).cluster)
+        assertEquals(true, AppTiers.route(AppTier.MEDIUM, null, mediumOn = true).cluster)
+        assertEquals(true, AppTiers.route(AppTier.IMPORTANT, true, importantOn = false).cluster)
+        assertEquals(false, AppTiers.route(AppTier.MEDIUM, false, mediumOn = true).cluster)
+    }
+
+    @Test fun nameOnlyHidesEveryMessageBody() {
+        val v = AppTiers.messageView("Asha", "See you at the cafe at 5", nameOnly = true)
+        assertEquals(AppTiers.MessageView("Asha", "", AppTiers.SENSITIVE_LABEL), v)
+        assertEquals("See you at the cafe at 5", AppTiers.messageView("Asha", "See you at the cafe at 5").clusterText)
+    }
 }

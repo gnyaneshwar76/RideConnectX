@@ -65,6 +65,14 @@ class ServicePreferencesStore @Inject constructor(
         context.servicePrefs.edit { it[REMINDERS_ON] = enabled }
     }
 
+    /** How many km before a service is due the reminder comes: 100, 200 or 500. */
+    val remindBeforeKm: Flow<Int> =
+        context.servicePrefs.data.map { it[REMIND_BEFORE_KM] ?: DEFAULT_REMIND_BEFORE_KM }
+
+    suspend fun setRemindBeforeKm(km: Int) {
+        context.servicePrefs.edit { it[REMIND_BEFORE_KM] = if (km in setOf(100, 200, 500)) km else DEFAULT_REMIND_BEFORE_KM }
+    }
+
     suspend fun setIntervalKm(km: Int) {
         context.servicePrefs.edit { it[INTERVAL_KM] = km }
     }
@@ -154,6 +162,8 @@ class ServicePreferencesStore @Inject constructor(
     companion object {
         private val REMINDERS_ON = booleanPreferencesKey("service_reminders_enabled")
         private val INTERVAL_KM = intPreferencesKey("service_interval_km")
+        private val REMIND_BEFORE_KM = intPreferencesKey("service_remind_before_km")
+        const val DEFAULT_REMIND_BEFORE_KM = 200
         private val INTERVAL_DAYS = intPreferencesKey("service_interval_days")
         private val LAST_ODO_KM = intPreferencesKey("last_known_odometer_km")
         private val CENTRE_STATE = stringPreferencesKey("centre_picker_state")

@@ -4,7 +4,7 @@ import com.eshwar.rideconnectx.domain.model.AccentColor
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** The saved palette name: new values round-trip, anything old reads as Soft teal. */
+/** The saved palette name: new values round-trip, anything old reads as Calm blue. */
 class AccentColorTest {
     @Test
     fun newValuesRoundTrip() {
@@ -14,8 +14,8 @@ class AccentColorTest {
     @Test
     fun oldOrMissingValuesBecomeTheDefault() {
         listOf("BLUE", "CYAN", "MAGENTA", "LIME", "AMBER", "", "junk", null).forEach {
-            assertEquals(AccentColor.SOFT_TEAL, AccentColor.fromName(it))
+            assertEquals(AccentColor.CALM_BLUE, AccentColor.fromName(it))
         }
-        assertEquals(AccentColor.SOFT_TEAL, AccentColor.BLUE)
+        assertEquals(AccentColor.CALM_BLUE, AccentColor.BLUE)
     }
 }

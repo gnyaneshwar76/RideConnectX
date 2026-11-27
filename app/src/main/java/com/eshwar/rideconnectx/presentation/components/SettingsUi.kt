@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -100,6 +101,7 @@ fun SettingsToggleRow(
             // The whole row is the switch, so TalkBack says "<title>, <subtitle>, on, switch"
             // (the inner switch's own toggleable would otherwise be a second, unlabeled stop).
             .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)
+            .heightIn(min = 48.dp)
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -164,7 +166,8 @@ fun SettingsLinkRow(
             }
         }
         if (value.isNotBlank()) {
-            Text(value, style = RcxType.Mono.copy(fontSize = 12.sp), color = c.cyan)
+            // The label's weight(1f) takes the rest, so the value sits at the row end; the cap stops a long value squeezing the label.
+            Text(value, Modifier.widthIn(max = 150.dp), style = RcxType.Mono.copy(fontSize = 12.sp), color = c.cyan, textAlign = androidx.compose.ui.text.style.TextAlign.End)
         }
         if (chevron && onClick != null) {
             Icon(
@@ -207,6 +210,7 @@ fun SettingsChoiceRow(
         modifier
             .fillMaxWidth()
             .selectable(selected = selected, role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onSelect)
+            .heightIn(min = 48.dp)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -237,7 +241,7 @@ fun SettingsChoiceRow(
                 .background(if (selected) c.blue.copy(alpha = 0.13f) else Color.Transparent)
                 .border(
                     1.5.dp,
-                    if (selected) c.blue else c.muted.copy(alpha = 0.4f),
+                    if (selected) c.blue else c.muted.copy(alpha = 0.75f),
                     RoundedCornerShape(10.dp),
                 ),
             contentAlignment = Alignment.Center,

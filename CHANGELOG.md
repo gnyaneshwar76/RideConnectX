@@ -2,6 +2,27 @@
 
 All notable changes to RideConnectX. Format: Keep a Changelog. Versions follow the release tag.
 
+## [1.0.9-tester] - 2026-11-27 (testers only)
+
+### Changed
+- Settings: new order (Profile, My scooter, Service, Alerts, Appearance, Permissions, Privacy, Help, Diagnostics), each group in its own card. New pages for Profile, My scooter, Service, Alerts on your scooter, Privacy and terms, and Help and about.
+- Home: four tiles (Odo meter, Fuel, Trip A, Trip B). The Service page opens from Settings.
+- Appearance: one live preview. Calm blue is the default palette for new installs.
+- Bottom buttons sit side by side on Profile and My scooter.
+
+### Fixed
+- Before: the first tap on a button could be ignored while a page slid in. Now: taps always count.
+- Before: Appearance jumped to the top and closed Advanced when you changed a switch. Now: it stays where you are.
+- Before: Edit profile would not save without a nickname. Now: the nickname is optional.
+- Before: a guest saw "Sign out" on Profile. Now: "Sign in".
+- Before: Back from Welcome closed the app. Now: asks to press again.
+- Before: stale odometer error on Add service record. Now: it clears.
+- The sign-in page has a Back arrow.
+- A fresh install starts faster (baseline profile).
+
+### Known limits
+- Not yet checked on a real phone: the page-change lag report, and the Sign out and Forget sheets.
+
 ## [1.0.7-tester] - 2026-11-25 (testers only)
 
 ### Changed

@@ -3,6 +3,10 @@ package com.eshwar.rideconnectx.presentation.screens
 import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
 import com.eshwar.rideconnectx.presentation.components.contentWidth
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.eshwar.rideconnectx.presentation.components.BottomActions
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -80,6 +84,7 @@ fun SignInScreen(
     onGuest: () -> Unit,
     onTerms: () -> Unit,
     onPrivacy: () -> Unit,
+    onBack: () -> Unit,
     vm: AuthViewModel = hiltViewModel(),
 ) {
     val c = Rcx.colors
@@ -113,108 +118,43 @@ fun SignInScreen(
                 .safeDrawingCentred()
                 .contentWidth()
                 .fillMaxWidth()
-                .align(Alignment.TopCenter)
-                .padding(horizontal = 20.dp),
+                .align(Alignment.TopCenter),
         ) {
+            com.eshwar.rideconnectx.presentation.components.BackHeader(title = "", onBack = onBack)
+            // Scrolls, so the fields and the footer stay reachable in landscape,
+            // at a large font and with the keyboard open. The buttons are pinned below.
             Column(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
                 LogoIcon(size = 72.dp)
                 Spacer(Modifier.height(16.dp))
-                Text(stringResource(R.string.signin_welcome_back), style = RcxType.Wordmark.copy(fontSize = 22.sp), color = c.text)
+                Text(stringResource(R.string.signin_welcome), style = RcxType.Wordmark.copy(fontSize = 22.sp), color = c.text)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     stringResource(R.string.signin_subtitle),
                     style = RcxType.Body.copy(fontSize = 14.sp),
                     color = c.muted,
                 )
-            }
+                Spacer(Modifier.height(20.dp))
 
-            Column(
-                Modifier.fillMaxWidth().padding(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // Google — Google's brand guidelines require the white button.
                 if (!com.eshwar.rideconnectx.BuildConfig.CLOUD_ENABLED) {
                     Text(
                         stringResource(R.string.signin_cloud_off),
                         style = RcxType.BodySmall.copy(fontSize = 12.sp),
                         color = c.muted,
                     )
+                    Spacer(Modifier.height(12.dp))
                 }
-                val googleShape = RoundedCornerShape(16.dp)
-                if (com.eshwar.rideconnectx.BuildConfig.CLOUD_ENABLED) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .clip(googleShape)
-                        .background(Color.White)
-                        .then(
-                            if (c.isDark) Modifier
-                            else Modifier.border(1.dp, c.border, googleShape)
-                        )
-                        .clickable(enabled = !state.isBusy) { vm.signInWithGoogle(activity) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (state.isBusy) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = Color(0xFF1A1A2E),
-                            )
-                        } else {
-                            Image(
-                                painter = painterResource(R.drawable.ic_google),
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                        Text(
-                            stringResource(R.string.signin_google),
-                            style = RcxType.Button.copy(fontWeight = FontWeight.SemiBold),
-                            color = Color(0xFF1A1A2E),
-                        )
-                    }
+                if (com.eshwar.rideconnectx.BuildConfig.CLOUD_ENABLED && state.mode == AuthMode.Email) {
+                    EmailFields(state = state, vm = vm)
+                    Spacer(Modifier.height(12.dp))
                 }
-
-                if (state.mode == AuthMode.Email) {
-                    EmailForm(state = state, vm = vm)
-                } else {
-                    PrimaryButton(
-                        label = stringResource(R.string.signin_email),
-                        onClick = { vm.setMode(AuthMode.Email) },
-                        modifier = Modifier.fillMaxWidth(),
-                        secondary = true,
-                        enabled = !state.isBusy,
-                        icon = {
-                            Icon(Icons.Default.Email, null, Modifier.size(18.dp), tint = c.blue)
-                        },
-                    )
-                }
-                }
-
-                PrimaryButton(
-                    label = stringResource(R.string.signin_guest),
-                    onClick = onGuest,
-                    modifier = Modifier.fillMaxWidth(),
-                    secondary = true,
-                    enabled = !state.isBusy,
-                    icon = {
-                        Icon(
-                            Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = c.blue,
-                        )
-                    },
-                )
 
                 // Shown when Google Sign-In has no OAuth client ID yet.
                 (state.errorMessage ?: state.infoMessage)?.let { notice ->
@@ -241,9 +181,100 @@ fun SignInScreen(
                             color = c.muted,
                         )
                     }
+                    Spacer(Modifier.height(12.dp))
                 }
 
                 LegalFooter(onTerms = onTerms, onPrivacy = onPrivacy)
+            }
+
+            BottomActions(sideBySide = false) {
+                val cloud = com.eshwar.rideconnectx.BuildConfig.CLOUD_ENABLED
+                // Email form open: its main action comes first.
+                if (cloud && state.mode == AuthMode.Email) {
+                    if (state.askLinkEmail) PrimaryButton(
+                        label = stringResource(R.string.signin_finish_link),
+                        onClick = { vm.finishEmailLink() },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = state.canSendLink || state.isBusy,
+                        busy = state.isBusy,
+                    ) else PrimaryButton(
+                        label = if (state.isNewAccount) stringResource(R.string.signin_create_account)
+                            else stringResource(R.string.signin_sign_in),
+                        onClick = vm::submitEmail,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = state.canSubmitEmail || state.isBusy,
+                        busy = state.isBusy,
+                    )
+                }
+                // Google's brand guidelines require the white button.
+                if (cloud) {
+                    val googleShape = RoundedCornerShape(16.dp)
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .clip(googleShape)
+                            .background(Color.White)
+                            .then(
+                                if (c.isDark) Modifier
+                                else Modifier.border(1.dp, c.border, googleShape)
+                            )
+                            .clickable(enabled = !state.isBusy, role = androidx.compose.ui.semantics.Role.Button) { vm.signInWithGoogle(activity) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (state.isBusy) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color(0xFF1A1A2E),
+                                )
+                            } else {
+                                Image(
+                                    painter = painterResource(R.drawable.ic_google),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                            Text(
+                                stringResource(R.string.signin_google),
+                                style = RcxType.Button.copy(fontWeight = FontWeight.SemiBold),
+                                color = Color(0xFF1A1A2E),
+                            )
+                        }
+                    }
+                    if (state.mode != AuthMode.Email) {
+                        PrimaryButton(
+                            label = stringResource(R.string.signin_email),
+                            onClick = { vm.setMode(AuthMode.Email) },
+                            modifier = Modifier.fillMaxWidth(),
+                            secondary = true,
+                            enabled = !state.isBusy,
+                            icon = {
+                                Icon(Icons.Default.Email, null, Modifier.size(18.dp), tint = c.blue)
+                            },
+                        )
+                    }
+                }
+
+                PrimaryButton(
+                    label = stringResource(R.string.signin_guest),
+                    onClick = onGuest,
+                    modifier = Modifier.fillMaxWidth(),
+                    secondary = true,
+                    enabled = !state.isBusy,
+                    icon = {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = c.blue,
+                        )
+                    },
+                )
             }
         }
     }
@@ -284,9 +315,9 @@ private fun LegalFooter(onTerms: () -> Unit, onPrivacy: () -> Unit) {
 }
 
 
-/** Email + password entry, doubling as sign-up when the toggle is on. */
+/** Email + password entry, doubling as sign-up when the toggle is on. The submit button is pinned by the screen. */
 @Composable
-private fun EmailForm(state: SignInUiState, vm: AuthViewModel) {
+private fun EmailFields(state: SignInUiState, vm: AuthViewModel) {
     val c = Rcx.colors
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
@@ -312,13 +343,6 @@ private fun EmailForm(state: SignInUiState, vm: AuthViewModel) {
                 textStyle = RcxType.Body.copy(fontSize = 15.sp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 colors = fieldColors,
-            )
-            PrimaryButton(
-                label = stringResource(R.string.signin_finish_link),
-                onClick = { vm.finishEmailLink() },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = state.canSendLink || state.isBusy,
-                busy = state.isBusy,
             )
             return@Column
         }
@@ -368,15 +392,6 @@ private fun EmailForm(state: SignInUiState, vm: AuthViewModel) {
                 color = if (PasswordRules.isValid(state.password)) c.green else c.muted,
             )
         }
-
-        PrimaryButton(
-            label = if (state.isNewAccount) stringResource(R.string.signin_create_account)
-                else stringResource(R.string.signin_sign_in),
-            onClick = vm::submitEmail,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = state.canSubmitEmail || state.isBusy,
-            busy = state.isBusy,
-        )
 
         Row(
             Modifier.fillMaxWidth(),

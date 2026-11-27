@@ -67,9 +67,16 @@ object AppTiers {
     data class Route(val store: Boolean, val cluster: Boolean)
 
     /** [switch] = the rider's per-app switch, null when never set (tier default: Important ON, Medium OFF). */
-    fun route(tier: AppTier, switch: Boolean?): Route = when (tier) {
+    fun route(
+        tier: AppTier,
+        switch: Boolean?,
+        master: Boolean = true,
+        importantOn: Boolean = true,
+        mediumOn: Boolean = false,
+    ): Route = when (tier) {
         AppTier.IGNORED -> Route(store = false, cluster = false)
-        else -> Route(store = true, cluster = switch ?: (tier == AppTier.IMPORTANT))
+        // The master switch and the tier switches only gate the cluster; history keeps its own rules.
+        else -> Route(store = true, cluster = master && (switch ?: (if (tier == AppTier.IMPORTANT) importantOn else mediumOn)))
     }
 
     private val OTP_WORD = Regex(
@@ -121,8 +128,8 @@ object AppTiers {
      * name (cluster and history) with [SENSITIVE_LABEL]. A sender name that itself looks
      * like a code or bank text is blanked too. Normal messages keep the [preview].
      */
-    fun messageView(who: String, body: String): MessageView =
-        if (isSensitive("$who $body")) {
+    fun messageView(who: String, body: String, nameOnly: Boolean = false): MessageView =
+        if (nameOnly || isSensitive("$who $body")) {
             MessageView(if (isSensitive(who)) "" else who, "", SENSITIVE_LABEL)
         } else {
             MessageView(who, body, preview(body))

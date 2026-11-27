@@ -128,7 +128,6 @@ fun DashboardScreen(
 ) {
     val c = Rcx.colors
     val state by vm.uiState.collectAsStateWithLifecycle()
-    val serviceStatus by vm.serviceStatus.collectAsStateWithLifecycle()
     val distanceUnit by vm.distanceUnit.collectAsStateWithLifecycle()
 
     val glassMode = LocalStyleMode.current == StyleMode.GLASS
@@ -238,138 +237,28 @@ fun DashboardScreen(
             // ── Vehicle hero ────────────────────────────────────────
             val vehicle = state.vehicle
             if (vehicle == null) {
-                Box(Modifier.enterRise(1)) { NoVehicleCard(onPairVehicle) }
+                Box(Modifier.enterRise(1)) { NoVehicleCard(onPairVehicle, connected = state.isConnected) }
             } else {
-                val accent = vehicle.accent
-                // Tap to turn the card over; it also leans with the phone.
-                var flipped by rememberSaveable { mutableStateOf(false) }
-                val tilt = rememberTilt()
-                FlipCard(
-                    flipped = flipped,
-                    modifier = Modifier
-                        .enterRise(1)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClickLabel = "Turn the card over",
-                            role = androidx.compose.ui.semantics.Role.Button,
-                        ) { flipped = !flipped },
-                    tilt = tilt,
-                    back = { VehicleCardBack(state, vehicle, distanceUnit) },
-                ) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(accent.copy(alpha = 0.10f), c.card)
-                            )
-                        )
-                        .border(1.dp, accent.copy(alpha = 0.16f), RoundedCornerShape(22.dp))
-                        .runningBorder(
-                            state.connectionState is ConnectionState.Scanning ||
-                                state.connectionState is ConnectionState.Connecting,
-                            c.cyan, 22.dp,
-                        )
-                        .padding(16.dp),
-                ) {
-                    // The vehicle is the subject of this screen, so it gets the
-                    // width of the card and the name sits under it. It used to
-                    // be a 130dp thumbnail in the right-hand third of a row,
-                    // with "Connected Vehicle" — a label saying nothing the
-                    // rider does not already know — taking the larger half.
-                    // The hero: about 40% of the screen height.
-                    val heroHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.4f)
-                        .coerceIn(240f, 420f).dp
-                    Box {
-                        VehicleStage(
-                            vehicle = vehicle,
-                            colorway = state.vehicleColor,
-                            accent = accent,
-                            modifier = Modifier.clip(RoundedCornerShape(18.dp)),
-                            height = heroHeight,
-                            live = state.isConnected,
-                            scanning = state.connectionState is ConnectionState.Scanning ||
-                                state.connectionState is ConnectionState.Connecting,
-                            rollIn = true,
-                            tilt = tilt,
-                        )
-                        Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
-                            ConnectionPill(connected = state.isConnected, onClick = onPairVehicle)
-                        }
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                vehicle.name,
-                                style = RcxType.Wordmark.copy(fontSize = 20.sp),
-                                color = c.text,
-                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                state.vehicleColor?.name ?: vehicle.subtitle,
-                                style = RcxType.BodySmall.copy(fontSize = 12.sp),
-                                color = c.muted,
-                            )
-                        }
-                    }
-                }
-                }
+                VehicleHeroCard(state, vehicle, distanceUnit, onPairVehicle, Modifier.enterRise(1))
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // ── Readings: Odometer, Fuel, Trip A, Next service ──────
+            // ── Readings: Odometer, Fuel, Trip A, Trip B ──────
             CompositionLocalProvider(LocalDistanceUnit provides distanceUnit) {
                 Box(Modifier.enterRise(2)) {
                     HomeReadings(
                         odometerKm = state.odometer,
                         tripAKm = state.tripAKm,
+                        tripBKm = state.tripBKm,
                         fuelSegments = state.fuelSegments,
                         unit = distanceUnit,
-                        service = serviceStatus,
-                        onService = onService,
                     )
                 }
             }
 
             Spacer(Modifier.height(28.dp))
         }
-    }
-}
-
-/** The back of the vehicle card: what it is and what it last reported. */
-@Composable
-private fun VehicleCardBack(state: DashboardUiState, vehicle: Vehicle, unit: DistanceUnit) {
-    val c = Rcx.colors
-    val shape = RoundedCornerShape(22.dp)
-    Column(
-        Modifier
-            .fillMaxSize()
-            .clip(shape)
-            .background(Brush.linearGradient(listOf(vehicle.accent.copy(alpha = 0.16f), c.card)))
-            .border(1.dp, vehicle.accent.copy(alpha = 0.16f), shape)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.SpaceEvenly,
-    ) {
-        Text("VEHICLE DETAILS", style = RcxType.MonoTiny.copy(fontSize = 10.sp), color = c.muted)
-        listOf(
-            "Model" to vehicle.name,
-            "Colour" to (state.vehicleColor?.name ?: "—"),
-            "Cluster" to (if (state.isConnected) state.deviceName else "Not connected"),
-            "Odometer" to (state.odometer?.let { unit.format(it) } ?: "—"),
-            "Trip A" to (state.tripAKm?.let { "%.1f %s".format(unit.fromKm(it), unit.short) } ?: "—"),
-        ).forEach { (label, value) ->
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(label, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.muted, modifier = Modifier.weight(1f))
-                Text(value, style = RcxType.Label.copy(fontSize = 14.sp), color = c.text)
-            }
-        }
-        Text("Tap to turn back", style = RcxType.BodySmall.copy(fontSize = 11.sp), color = c.muted)
     }
 }
 
@@ -433,7 +322,7 @@ private fun HeaderIconButton(
             ) {
                 Text(
                     if (badge > 9) "9+" else badge.toString(),
-                    style = RcxType.Mono.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                    style = RcxType.Mono.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold),
                     color = Color.White,
                 )
             }
@@ -453,7 +342,7 @@ private fun greeting(): String =
     }
 
 @Composable
-private fun ConnectionPill(connected: Boolean, onClick: () -> Unit) {
+internal fun ConnectionPill(connected: Boolean, onClick: () -> Unit) {
     val c = Rcx.colors
     val tint by animateColorAsState(if (connected) c.green else c.muted, tween(500), label = "pillTint")
     val ping by rememberBreath(1600, "pillPing", active = connected)
@@ -490,7 +379,7 @@ private fun ConnectionPill(connected: Boolean, onClick: () -> Unit) {
         Text(
             if (connected) stringResource(R.string.dash_connected)
             else stringResource(R.string.dash_offline),
-            style = RcxType.Mono.copy(fontSize = 10.sp),
+            style = RcxType.Mono.copy(fontSize = 12.sp),
             color = tint,
         )
     }
@@ -498,7 +387,7 @@ private fun ConnectionPill(connected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun NoVehicleCard(onPair: () -> Unit) {
+private fun NoVehicleCard(onPair: () -> Unit, connected: Boolean = false) {
     val c = Rcx.colors
     val src = remember { MutableInteractionSource() }
     Column(
@@ -510,12 +399,12 @@ private fun NoVehicleCard(onPair: () -> Unit) {
             .clickable(src, androidx.compose.foundation.LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, onClick = onPair)
             .padding(20.dp),
     ) {
-        Text(stringResource(R.string.dash_no_vehicle), style = RcxType.Label.copy(fontSize = 15.sp), color = c.text)
+        Text(stringResource(if (connected) R.string.dash_connected else R.string.dash_no_vehicle), style = RcxType.Label.copy(fontSize = 15.sp), color = c.text)
         Spacer(Modifier.height(4.dp))
         Text(
             // Names only what the scooter actually sends. Speed is not in the
             // telemetry frame, and phone battery belongs on the cluster.
-            stringResource(R.string.dash_no_vehicle_body),
+            stringResource(if (connected) R.string.dash_connected_unknown_body else R.string.dash_no_vehicle_body),
             style = RcxType.BodySmall.copy(fontSize = 12.sp),
             color = c.muted,
         )

@@ -83,6 +83,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.eshwar.rideconnectx.domain.model.IndianCities
@@ -108,6 +109,13 @@ import androidx.compose.ui.res.stringResource
 import com.eshwar.rideconnectx.R
 import com.eshwar.rideconnectx.presentation.components.BackHeader
 import com.eshwar.rideconnectx.presentation.components.PrimaryButton
+import com.eshwar.rideconnectx.presentation.components.DangerButton
+import com.eshwar.rideconnectx.presentation.components.SheetScaffold
+import com.eshwar.rideconnectx.presentation.components.SegmentedRow
+import com.eshwar.rideconnectx.presentation.components.SettingsToggleRow
+import com.eshwar.rideconnectx.domain.model.DistanceUnit
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.minimumInteractiveComponentSize
 import com.eshwar.rideconnectx.presentation.components.RcxHeroBanner
 import com.eshwar.rideconnectx.presentation.theme.LocalDistanceUnit
 import com.eshwar.rideconnectx.presentation.theme.Rcx
@@ -124,9 +132,9 @@ import java.util.TimeZone
 /**
  * Screen 18 — Service.
  *
- * Tracks service intervals and maintenance history. The reminder switch
- * lives in Settings → Notifications, with every other notification switch,
- * rather than being duplicated here. Everything is
+ * Tracks service intervals and maintenance history. Opened from the Settings
+ * Service row. Holds the reminders switch and "Remind me before" (100/200/500 km).
+ * Everything is
  * local (Room + DataStore), so it works offline and in Guest Mode; the scooter
  * has no service counter to read, so the schedule is derived from the rider's
  * own records and the odometer the cluster reports.
@@ -145,11 +153,21 @@ fun ServiceScreen(
     val minimumKm by vm.minimumOdometerKm.collectAsStateWithLifecycle()
     val unit by vm.distanceUnit.collectAsStateWithLifecycle()
 
-    // null = closed, a record = editing it, a blank record = adding one.
-    var editing by remember { mutableStateOf<ServiceRecordEntity?>(null) }
-    var pendingDelete by remember { mutableStateOf<ServiceRecordEntity?>(null) }
-    // null = closed; id 0 = adding a task; otherwise editing that one.
-    var editingTask by remember { mutableStateOf<UpcomingTask?>(null) }
+    val remindersOn by vm.remindersEnabled.collectAsStateWithLifecycle()
+    val remindBefore by vm.remindBeforeKm.collectAsStateWithLifecycle()
+
+    // Ids, not objects, so an open sheet survives a rotation. null = closed, 0 = adding.
+    var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pendingDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editingTaskId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val editing = editingId?.let { id ->
+        if (id == 0L) ServiceRecordEntity(ownerId = OwnerScope.DRAFT, servicedAt = startOfToday(), centre = "", odometerKm = 0)
+        else records.firstOrNull { it.id == id }
+    }
+    val pendingDelete = pendingDeleteId?.let { id -> records.firstOrNull { it.id == id } }
+    val editingTask = editingTaskId?.let { id ->
+        if (id == 0L) UpcomingTask(0, "", 3_000, null) else tasks.firstOrNull { it.id == id }
+    }
 
     // Everything below reads the rider's chosen units from here. Distances are
     // always stored in kilometres; only the display changes.
@@ -181,6 +199,15 @@ fun ServiceScreen(
             ) {
                 item { Box(Modifier.enterRise(0)) { RcxHeroBanner(R.drawable.img_service_hero) } }
 
+                item {
+                    RemindersCard(
+                        enabled = remindersOn,
+                        onEnabled = vm::setRemindersEnabled,
+                        remindBeforeKm = remindBefore,
+                        onRemindBefore = vm::setRemindBeforeKm,
+                    )
+                }
+
                 // Order is what the rider does next, then when, then what they
                 // have already done. Next Service used to lead, which is the
                 // summary of a schedule the rider had not been shown yet.
@@ -193,8 +220,7 @@ fun ServiceScreen(
                     Spacer(Modifier.height(10.dp))
                     UpcomingTasksCard(
                         tasks = tasks,
-                        onEdit = { editingTask = it },
-                        onAdd = { editingTask = UpcomingTask(0, "", 3_000, null) },
+                        onEdit = { editingTaskId = it.id },
                     )
                     }
                 }
@@ -218,57 +244,42 @@ fun ServiceScreen(
                             icon = Icons.Filled.Build,
                             title = stringResource(R.string.service_no_records),
                             description = stringResource(R.string.service_no_records_desc),
-                            onAdd = {
-                                editing = ServiceRecordEntity(
-                                    ownerId = OwnerScope.DRAFT,
-                                    servicedAt = startOfToday(),
-                                    centre = "",
-                                    odometerKm = 0,
-                                )
-                            }
+                            onAdd = { editingId = 0L }
                         )
                     }
                 } else {
                     items(records, key = { it.id }) { record ->
                         // New records slide in, deleted ones fold away.
                         Box(Modifier.animateItem().enterRise(3).edgeShrink(headerList, record.id)) {
-                        SwipeToDelete(onDelete = { pendingDelete = record }) {
+                        SwipeToDelete(onDelete = { pendingDeleteId = record.id }) {
                         ServiceRecordCard(
                             record = record,
-                            onEdit = { editing = record },
-                            onDelete = { pendingDelete = record },
+                            onEdit = { editingId = record.id },
+                            onDelete = { pendingDeleteId = record.id },
                         )
                         }
                         }
                     }
                 }
-
-                item {
-                    PrimaryButton(
-                        label = stringResource(R.string.service_add_record),
-                        onClick = {
-                            editing = ServiceRecordEntity(
-                                ownerId = OwnerScope.DRAFT,
-                                servicedAt = startOfToday(),
-                                centre = "",
-                                // Deliberately empty. Pre-filling it with the
-                                // last known reading looked helpful and was a
-                                // trap: tapping the field puts the caret where
-                                // the finger lands, so typing appends. On the
-                                // emulator, correcting a pre-filled 1602 to 900
-                                // stored 160,290 km. The last known reading is
-                                // shown under the field instead, where it can
-                                // inform without being typed into.
-                                odometerKm = 0,
-                            )
-                        },
-                        icon = {
-                            Icon(Icons.Filled.Add, null, Modifier.size(18.dp), tint = Color.White)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
             }
+            }
+            // Pinned at the bottom, always reachable: stacked, same size.
+            com.eshwar.rideconnectx.presentation.components.BottomActions {
+                // The record odometer starts empty on purpose: pre-filling it with the
+                // last known reading was a trap (typing appended to it, 160,290 km once).
+                PrimaryButton(
+                    label = stringResource(R.string.service_add_record),
+                    onClick = { editingId = 0L },
+                    icon = { Icon(Icons.Filled.Add, null, Modifier.size(18.dp), tint = Color.White) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                PrimaryButton(
+                    label = stringResource(R.string.service_add_task),
+                    onClick = { editingTaskId = 0L },
+                    secondary = true,
+                    icon = { Icon(Icons.Filled.Add, null, Modifier.size(18.dp), tint = c.blue) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
@@ -286,7 +297,7 @@ fun ServiceScreen(
             rememberedState = centrePlace.first,
             rememberedCity = centrePlace.second,
             onPlacePicked = vm::rememberCentrePlace,
-            onDismiss = { editing = null },
+            onDismiss = { editingId = null },
             onSave = { servicedAt, centre, odo, notes ->
                 vm.save(record.id, servicedAt, centre, odo, notes)
             },
@@ -296,12 +307,12 @@ fun ServiceScreen(
     editingTask?.let { task ->
         TaskSheet(
             task = task,
-            onDismiss = { editingTask = null },
+            onDismiss = { editingTaskId = null },
             onSave = { label, everyKm -> vm.saveTask(task.id, label, everyKm) },
             onDelete = if (task.id == 0L) null else {
                 {
                     vm.deleteTask(task.id)
-                    editingTask = null
+                    editingTaskId = null
                 }
             },
         )
@@ -313,13 +324,54 @@ fun ServiceScreen(
             summary = "${formatDate(record.servicedAt)} · ${record.centre} · " +
                 "${unit.format(record.odometerKm)}. " +
                 stringResource(R.string.service_delete_record_desc),
-            onDismiss = { pendingDelete = null },
+            onDismiss = { pendingDeleteId = null },
             onConfirm = {
                 vm.delete(record)
-                pendingDelete = null
+                pendingDeleteId = null
             },
         )
     }
+    }
+}
+
+/* ── Reminders ────────────────────────────────────────────────────── */
+
+private val RemindOptionsKm = listOf(100, 200, 500)
+
+@Composable
+private fun RemindersCard(
+    enabled: Boolean,
+    onEnabled: (Boolean) -> Unit,
+    remindBeforeKm: Int,
+    onRemindBefore: (Int) -> Unit,
+) {
+    val c = Rcx.colors
+    val unit = LocalDistanceUnit.current
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).cardSurface(shape).padding(vertical = 6.dp),
+    ) {
+        SettingsToggleRow(
+            title = stringResource(R.string.settings_service_reminders),
+            subtitle = stringResource(R.string.settings_service_reminders_sub),
+            checked = enabled,
+            onCheckedChange = onEnabled,
+        )
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Text(stringResource(R.string.service_remind_before), style = RcxType.Label.copy(fontSize = 14.sp), color = c.text)
+            Text(
+                stringResource(R.string.service_remind_before_sub),
+                style = RcxType.BodySmall.copy(fontSize = 12.sp),
+                color = c.muted,
+                modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
+            )
+            SegmentedRow(
+                options = RemindOptionsKm.map { unit.format(it) },
+                selected = RemindOptionsKm.indexOf(remindBeforeKm),
+                onSelect = { onRemindBefore(RemindOptionsKm[it]) },
+                enabled = enabled,
+            )
+        }
     }
 }
 
@@ -463,7 +515,7 @@ private fun ServiceStatusCard(status: ServiceStatus) {
                     R.string.service_last,
                     unit.format(status.lastServiceOdometerKm ?: 0),
                 ),
-                style = RcxType.Mono.copy(fontSize = 10.sp),
+                style = RcxType.Mono.copy(fontSize = 12.sp),
                 color = c.muted,
             )
             Text(
@@ -471,7 +523,7 @@ private fun ServiceStatusCard(status: ServiceStatus) {
                     R.string.service_due,
                     status.dueAtKm?.let { unit.format(it) } ?: "—",
                 ),
-                style = RcxType.Mono.copy(fontSize = 10.sp),
+                style = RcxType.Mono.copy(fontSize = 12.sp),
                 color = c.muted,
             )
         }
@@ -527,7 +579,6 @@ private fun StatTile(
 private fun UpcomingTasksCard(
     tasks: List<UpcomingTask>,
     onEdit: (UpcomingTask) -> Unit,
-    onAdd: () -> Unit,
 ) {
     val c = Rcx.colors
     val unit = LocalDistanceUnit.current
@@ -539,6 +590,14 @@ private fun UpcomingTasksCard(
             .cardSurface(shape)
             .padding(vertical = 6.dp),
     ) {
+        if (tasks.isEmpty()) {
+            Text(
+                stringResource(R.string.service_no_tasks),
+                style = RcxType.BodySmall.copy(fontSize = 13.sp),
+                color = c.muted,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+        }
         tasks.forEach { item ->
             val accent = if (item.isOverdue) c.amber else c.blue
             Row(
@@ -563,7 +622,7 @@ private fun UpcomingTasksCard(
                     Spacer(Modifier.height(2.dp))
                     Text(
                         stringResource(R.string.service_every, unit.format(item.everyKm)),
-                        style = RcxType.BodySmall.copy(fontSize = 11.sp),
+                        style = RcxType.BodySmall.copy(fontSize = 12.sp),
                         color = c.muted,
                     )
                 }
@@ -576,7 +635,7 @@ private fun UpcomingTasksCard(
                             unit.format(item.remainingKm),
                         )
                     },
-                    style = RcxType.Mono.copy(fontSize = 11.sp),
+                    style = RcxType.Mono.copy(fontSize = 12.sp),
                     color = if (item.isOverdue) c.amber else c.muted,
                 )
                 Icon(
@@ -585,32 +644,6 @@ private fun UpcomingTasksCard(
                     Modifier.size(16.dp), tint = c.muted,
                 )
             }
-        }
-
-        // Adding is part of the list, not a separate button somewhere else.
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(role = androidx.compose.ui.semantics.Role.Button) { onAdd() }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(c.blue.copy(alpha = 0.094f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Filled.Add, null, Modifier.size(16.dp), tint = c.blue)
-            }
-            Text(
-                stringResource(R.string.service_add_task),
-                style = RcxType.Label,
-                color = c.blue,
-                modifier = Modifier.weight(1f),
-            )
         }
     }
 }
@@ -701,6 +734,7 @@ private fun GhostAction(
     val shape = RoundedCornerShape(10.dp)
     Row(
         Modifier
+            .minimumInteractiveComponentSize()
             .clip(shape)
             .background(accent.copy(alpha = 0.063f))
             .border(1.dp, accent.copy(alpha = 0.157f), shape)
@@ -824,12 +858,12 @@ private fun ServiceRecordSheet(
     // produced 160,290 km. A pre-filled field the rider has to clear by hand is
     // worse than no pre-fill at all.
     var odometer by androidx.compose.runtime.saveable.rememberSaveable(stateSaver = TextFieldValue.Saver) {
-        val text = if (record.odometerKm > 0) record.odometerKm.toString() else ""
+        val text = if (record.odometerKm > 0) unit.fromKm(record.odometerKm).toString() else ""
         mutableStateOf(TextFieldValue(text, selection = TextRange(0, text.length)))
     }
     var notes by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(record.notes) }
     var error by remember { mutableStateOf<RecordError?>(null) }
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
     // Saved: the button shows a tick for a moment, then the sheet closes.
     var saved by remember { mutableStateOf(false) }
     LaunchedEffect(saved) { if (saved) { kotlinx.coroutines.delay(SAVED_HOLD_MS); onDismiss() } }
@@ -839,9 +873,21 @@ private fun ServiceRecordSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = sheetContainerColor(),
     ) {
-        androidx.compose.foundation.layout.Column(Modifier.sheetEnter()) {
-        GlassSheetWindow()
-        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
+        SheetScaffold(
+            buttons = {
+                PrimaryButton(
+                    label = if (saved) stringResource(R.string.service_saved) else stringResource(R.string.service_save_record),
+                    onClick = {
+                        if (!saved) {
+                            error = onSave(servicedAt, centre, odometer.text.toIntOrNull()?.let { toKm(unit, it) }, notes)
+                            saved = error == null
+                        }
+                    },
+                    icon = if (saved) { { SavedTick() } } else null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+        ) {
             Text(
                 if (record.id == 0L)
                     stringResource(R.string.service_add_record)
@@ -880,8 +926,8 @@ private fun ServiceRecordSheet(
             // and city are remembered, so the next open starts at centres.
             // Typing is always allowed and saves as typed.
             var centreOpen by remember { mutableStateOf(false) }
-            var pickState by remember { mutableStateOf(rememberedState) }
-            var pickCity by remember { mutableStateOf(rememberedCity) }
+            var pickState by rememberSaveable { mutableStateOf(rememberedState) }
+            var pickCity by rememberSaveable { mutableStateOf(rememberedCity) }
             val focus = LocalFocusManager.current
             SheetField(
                 value = centre,
@@ -936,13 +982,13 @@ private fun ServiceRecordSheet(
                         // Typing filters the state and city lists; picking one
                         // clears the typing, ready for the centre's name.
                         pickState.isBlank() -> {
-                            PickerTitle("Choose your state")
+                            PickerTitle(stringResource(R.string.service_pick_state))
                             IndianCities.states.filter { it.contains(centre.trim(), ignoreCase = true) }
                                 .forEach { s -> PickerRow(s) { pickState = s; centre = "" } }
                         }
                         // Step 2: that state's cities (the N15 list, by state).
                         pickCity.isBlank() -> {
-                            PickerTitle("$pickState  ·  change") { pickState = "" }
+                            PickerTitle(stringResource(R.string.service_pick_change, pickState)) { pickState = "" }
                             IndianCities.citiesIn(pickState).filter { it.contains(centre.trim(), ignoreCase = true) }
                                 .forEach { city ->
                                     PickerRow(city) {
@@ -954,11 +1000,11 @@ private fun ServiceRecordSheet(
                         }
                         // Step 3: centres for the city.
                         else -> {
-                            PickerTitle("$pickState › $pickCity  ·  change") { pickCity = "" }
+                            PickerTitle(stringResource(R.string.service_pick_change_city, pickState, pickCity)) { pickCity = "" }
                             if (!locationDeclined) {
-                                PickerTitle("Near me")
+                                PickerTitle(stringResource(R.string.service_near_me))
                                 if (needsLocation) {
-                                    PickerRow("Turn on location to see nearby centres", c.blue) {
+                                    PickerRow(stringResource(R.string.service_turn_on_location), c.blue) {
                                         if (!locationAllowed) {
                                             askLocation.launch(
                                                 arrayOf(
@@ -978,7 +1024,7 @@ private fun ServiceRecordSheet(
                                 }
                             }
                             if (pastOptions.isNotEmpty()) {
-                                PickerTitle("Your past centres")
+                                PickerTitle(stringResource(R.string.service_past_centres))
                                 pastOptions.forEach { o -> PickerRow(o) { centre = o; focus.clearFocus() } }
                             }
                             // TODO(R2): Google Places autocomplete for [pickCity] plugs in
@@ -1003,6 +1049,7 @@ private fun ServiceRecordSheet(
                     style = RcxType.BodySmall.copy(fontSize = 13.sp),
                     color = c.blue,
                     modifier = Modifier
+                        .minimumInteractiveComponentSize()
                         .clip(RoundedCornerShape(50))
                         .border(1.dp, c.blue.copy(alpha = 0.5f), RoundedCornerShape(50))
                         .clickable(role = androidx.compose.ui.semantics.Role.Button) { openNearbyServiceCentres(context) }
@@ -1012,13 +1059,15 @@ private fun ServiceRecordSheet(
 
             Spacer(Modifier.height(14.dp))
 
-            // Always entered in kilometres — that is what the vehicle reads and
-            // what gets stored, whatever the display unit is set to.
-            FieldLabel(stringResource(R.string.service_odometer))
+            // Entered in the rider's chosen unit and converted to km on save: stored
+            // values stay kilometres, but the label and the typing agree.
+            FieldLabel(stringResource(R.string.service_odometer, unit.short))
             OdometerField(
                 value = odometer,
                 onValueChange = { input ->
                     val digits = input.text.filter(Char::isDigit).take(6)
+                    // N140: an odometer error is stale once the rider edits the field.
+                    if (digits != odometer.text && (error is RecordError.OdometerMissing || error is RecordError.OdometerTooLow || error is RecordError.OdometerTooHigh)) error = null
                     // Keep the caret where the rider put it, clamped to the
                     // text that survived filtering.
                     odometer = input.copy(
@@ -1034,12 +1083,12 @@ private fun ServiceRecordSheet(
                     FieldError(
                         stringResource(
                             R.string.service_odometer_min_error,
-                            com.eshwar.rideconnectx.domain.model.DistanceUnit.KM.format(e.minimumKm),
+                            unit.format(e.minimumKm),
                         )
                     )
                 is RecordError.OdometerTooHigh ->
                     FieldError(
-                        stringResource(R.string.service_odometer_max_error, com.eshwar.rideconnectx.domain.model.DistanceUnit.KM.format(e.maximumKm))
+                        stringResource(R.string.service_odometer_max_error, unit.format(e.maximumKm))
                     )
                 else -> {
                     // Follows the chosen date, so back-filling an old service
@@ -1047,9 +1096,9 @@ private fun ServiceRecordSheet(
                     val (floor, ceiling) = bounds(servicedAt)
                     val hint = when {
                         ceiling != null -> stringResource(
-                            R.string.service_odometer_range, com.eshwar.rideconnectx.domain.model.DistanceUnit.KM.format(floor), com.eshwar.rideconnectx.domain.model.DistanceUnit.KM.format(ceiling),
+                            R.string.service_odometer_range, unit.format(floor), unit.format(ceiling),
                         )
-                        floor > 0 -> stringResource(R.string.service_odometer_at_least, com.eshwar.rideconnectx.domain.model.DistanceUnit.KM.format(floor))
+                        floor > 0 -> stringResource(R.string.service_odometer_at_least, unit.format(floor))
                         else -> null
                     }
                     hint?.let {
@@ -1087,6 +1136,7 @@ private fun ServiceRecordSheet(
                         style = RcxType.BodySmall.copy(fontSize = 13.sp),
                         color = if (added) c.blue else c.text,
                         modifier = Modifier
+                            .minimumInteractiveComponentSize()
                             .clip(RoundedCornerShape(50))
                             .background(if (added) c.blue.copy(alpha = 0.14f) else c.card2)
                             .border(1.dp, if (added) c.blue else c.border, RoundedCornerShape(50))
@@ -1104,21 +1154,7 @@ private fun ServiceRecordSheet(
                 }
             }
 
-            Spacer(Modifier.height(22.dp))
-
-            PrimaryButton(
-                label = if (saved) "Saved" else stringResource(R.string.service_save_record),
-                onClick = {
-                    if (!saved) {
-                        error = onSave(servicedAt, centre, odometer.text.toIntOrNull(), notes)
-                        saved = error == null
-                    }
-                },
-                icon = if (saved) { { SavedTick() } } else null,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
-    }
     }
 
     if (showDatePicker) {
@@ -1168,11 +1204,13 @@ private fun TaskSheet(
     onDelete: (() -> Unit)?,
 ) {
     val c = Rcx.colors
-    var label by remember { mutableStateOf(task.label) }
-    var everyKm by remember {
-        mutableStateOf(if (task.everyKm > 0) task.everyKm.toString() else "")
+    val unit = LocalDistanceUnit.current
+    var label by rememberSaveable { mutableStateOf(task.label) }
+    // Typed in the rider's unit; converted to km on save.
+    var everyKm by rememberSaveable {
+        mutableStateOf(if (task.everyKm > 0) unit.fromKm(task.everyKm).toString() else "")
     }
-    var showError by remember { mutableStateOf(false) }
+    var showError by rememberSaveable { mutableStateOf(false) }
     val valid = isValidTaskName(label) && (everyKm.toIntOrNull() ?: 0) > 0
     var saved by remember { mutableStateOf(false) }
     LaunchedEffect(saved) { if (saved) { kotlinx.coroutines.delay(SAVED_HOLD_MS); onDismiss() } }
@@ -1182,9 +1220,23 @@ private fun TaskSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = sheetContainerColor(),
     ) {
-        androidx.compose.foundation.layout.Column(Modifier.sheetEnter()) {
-        GlassSheetWindow()
-        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
+        SheetScaffold(
+            buttons = {
+                PrimaryButton(
+                    label = if (saved) stringResource(R.string.service_saved) else stringResource(R.string.service_save),
+                    onClick = {
+                        if (saved) Unit
+                        else if (valid) { onSave(label, everyKm.toIntOrNull()?.let { toKm(unit, it) }); saved = true }
+                        else showError = true
+                    },
+                    icon = if (saved) { { SavedTick() } } else null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                onDelete?.let { delete ->
+                    DangerButton(stringResource(R.string.service_remove_task), delete, modifier = Modifier.fillMaxWidth())
+                }
+            },
+        ) {
             Text(
                 if (task.id == 0L)
                     stringResource(R.string.service_add_task)
@@ -1205,51 +1257,18 @@ private fun TaskSheet(
 
             Spacer(Modifier.height(14.dp))
 
-            FieldLabel(stringResource(R.string.service_task_interval))
+            FieldLabel(stringResource(R.string.service_task_interval, unit.short))
             SheetField(
                 value = everyKm,
                 onValueChange = { everyKm = it.filter(Char::isDigit).take(6); showError = false },
-                placeholder = "3000",
+                placeholder = unit.fromKm(3_000).toString(),
                 numeric = true,
             )
             if (showError) {
                 FieldError(stringResource(R.string.service_task_error))
             }
 
-            Spacer(Modifier.height(22.dp))
-
-            PrimaryButton(
-                label = if (saved) "Saved" else stringResource(R.string.service_save),
-                onClick = {
-                    if (saved) Unit
-                    else if (valid) { onSave(label, everyKm.toIntOrNull()); saved = true }
-                    else showError = true
-                },
-                icon = if (saved) { { SavedTick() } } else null,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            onDelete?.let { delete ->
-                Spacer(Modifier.height(10.dp))
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(c.red.copy(alpha = 0.094f))
-                        .border(1.5.dp, c.red.copy(alpha = 0.31f), RoundedCornerShape(16.dp))
-                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = delete),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        stringResource(R.string.service_remove_task),
-                        style = RcxType.Button,
-                        color = c.red,
-                    )
-                }
-            }
         }
-    }
     }
 }
 
@@ -1267,47 +1286,21 @@ private fun ConfirmDeleteSheet(
         sheetState = rememberModalBottomSheetState(),
         containerColor = sheetContainerColor(),
     ) {
-        androidx.compose.foundation.layout.Column(Modifier.sheetEnter()) {
-        GlassSheetWindow()
-        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
-            Text(
-                question,
-                style = RcxType.Section.copy(fontSize = 17.sp),
-                color = c.text,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                summary,
-                style = RcxType.BodySmall.copy(fontSize = 13.sp),
-                color = c.muted,
-            )
-            Spacer(Modifier.height(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        SheetScaffold(
+            buttons = {
                 PrimaryButton(
                     label = stringResource(R.string.service_keep),
                     onClick = onDismiss,
                     secondary = true,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(c.red.copy(alpha = 0.094f))
-                        .border(1.5.dp, c.red.copy(alpha = 0.31f), RoundedCornerShape(16.dp))
-                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onConfirm),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        stringResource(R.string.service_delete),
-                        style = RcxType.Button,
-                        color = c.red,
-                    )
-                }
-            }
+                DangerButton(stringResource(R.string.service_delete), onConfirm, modifier = Modifier.fillMaxWidth())
+            },
+        ) {
+            Text(question, style = RcxType.Section.copy(fontSize = 17.sp), color = c.text)
+            Spacer(Modifier.height(8.dp))
+            Text(summary, style = RcxType.BodySmall.copy(fontSize = 13.sp), color = c.muted)
         }
-    }
     }
 }
 
@@ -1320,6 +1313,10 @@ private fun FieldLabel(text: String) {
         modifier = Modifier.padding(bottom = 8.dp, start = 2.dp),
     )
 }
+
+/** What the rider typed in their unit, back to the kilometres that are stored. */
+private fun toKm(unit: DistanceUnit, value: Int): Int =
+    if (unit == DistanceUnit.KM) value else Math.round(value * 1.609344).toInt()
 
 /** Maps searches around the rider; the browser when no Maps app is installed. */
 private fun openNearbyServiceCentres(context: android.content.Context) {
@@ -1343,6 +1340,7 @@ private fun PickerTitle(text: String, onClick: (() -> Unit)? = null) {
         modifier = Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick) else Modifier)
+            .then(if (onClick != null) Modifier.heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically) else Modifier)
             .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 4.dp),
     )
 }
@@ -1356,6 +1354,8 @@ private fun PickerRow(text: String, color: Color = Rcx.colors.text, onClick: () 
         modifier = Modifier
             .fillMaxWidth()
             .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .heightIn(min = 48.dp)
+            .wrapContentHeight(Alignment.CenterVertically)
             .padding(horizontal = 14.dp, vertical = 11.dp),
     )
 }

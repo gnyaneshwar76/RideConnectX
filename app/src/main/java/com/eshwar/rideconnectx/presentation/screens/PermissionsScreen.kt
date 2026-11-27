@@ -397,7 +397,7 @@ private fun PermissionCard(
                     if (permission.required) {
                         Text(
                             "REQUIRED",
-                            style = RcxType.Mono.copy(fontSize = 9.sp),
+                            style = RcxType.Mono.copy(fontSize = 11.sp),
                             color = c.blue,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
@@ -430,7 +430,7 @@ private fun PermissionCard(
                 Icon(Icons.Default.Warning, null, Modifier.size(13.dp), tint = c.red)
                 Text(
                     stringResource(R.string.perm_perm_denied),
-                    style = RcxType.BodySmall.copy(fontSize = 11.sp),
+                    style = RcxType.BodySmall.copy(fontSize = 12.sp),
                     color = c.muted,
                 )
             }

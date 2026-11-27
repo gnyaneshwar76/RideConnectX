@@ -119,6 +119,13 @@ class MapsNotificationListener : NotificationListenerService() {
 
     /** The rider's per-app switches (package -> on/off), kept fresh for the main-thread alert path. */
     @Volatile private var switches: Map<String, Boolean> = emptyMap()
+    // Alerts page switches, same pattern as [switches]; defaults match AppSettings.
+    @Volatile private var alertsCluster = true
+    @Volatile private var alertsImportant = true
+    @Volatile private var alertsMedium = false
+    @Volatile private var alertsNameOnly = false
+    private fun routeFor(tier: AppTier, pkg: String) =
+        AppTiers.route(tier, switches[pkg], alertsCluster, alertsImportant, alertsMedium)
     private val seenThisRun = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     private val navEntry: NavHistoryEntryPoint
@@ -127,6 +134,10 @@ class MapsNotificationListener : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         scope.launch { runCatching { navEntry.appSettings().appSwitches.collect { switches = it } } }
+        scope.launch { runCatching { navEntry.appSettings().alertsCluster.collect { alertsCluster = it } } }
+        scope.launch { runCatching { navEntry.appSettings().alertsImportant.collect { alertsImportant = it } } }
+        scope.launch { runCatching { navEntry.appSettings().alertsMedium.collect { alertsMedium = it } } }
+        scope.launch { runCatching { navEntry.appSettings().alertsNameOnly.collect { alertsNameOnly = it } } }
     }
 
     private fun defaultSms(): String? =
@@ -424,7 +435,7 @@ class MapsNotificationListener : NotificationListenerService() {
         val tier = tierOf(sbn, trustedCall)
         if (tier == AppTier.IGNORED) return
         markSeen(sbn.packageName)
-        val toCluster = AppTiers.route(tier, switches[sbn.packageName]).cluster
+        val toCluster = routeFor(tier, sbn.packageName).cluster
 
         // Every Important/Medium notification is logged at verbose, because when a lamp
         // does not light the first question is always 'did the app even see it',
@@ -508,9 +519,9 @@ class MapsNotificationListener : NotificationListenerService() {
                 val rawWho = cleanStoredText(extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty())
                 val rawBody = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
                 // One-time codes and bank texts: sender name only, the body goes nowhere (history, log, cluster).
-                val view = AppTiers.messageView(rawWho, rawBody)
+                val view = AppTiers.messageView(rawWho, rawBody, alertsNameOnly)
                 val who = view.who
-                val route = AppTiers.route(tier, switches[sbn.packageName])
+                val route = routeFor(tier, sbn.packageName)
                 if (!route.store) return
                 // Hash only: the dedup map must not hold a code's text either.
                 if (!alertDedup.shouldSend(sbn.key, "$rawWho|${rawBody.hashCode()}", System.currentTimeMillis(), isCall = false)) return
@@ -562,7 +573,7 @@ class MapsNotificationListener : NotificationListenerService() {
     private fun countsOnCluster(s: StatusBarNotification): Boolean {
         if (s.isOngoing || s.notification?.category in CALL_CATEGORIES) return false
         // Codes and bank texts count too: they reach the cluster as the sender name.
-        return AppTiers.route(tierOf(s, trustedCall = false), switches[s.packageName]).cluster
+        return routeFor(tierOf(s, trustedCall = false), s.packageName).cluster
     }
 
     /** One row on the Notifications page: sender and a short preview ([AppTiers.preview]) only, never the full text. */

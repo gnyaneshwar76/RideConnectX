@@ -14,7 +14,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.eshwar.rideconnectx.presentation.components.BottomActions
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +61,7 @@ fun IntroScreen(onStart: () -> Unit, onSignIn: () -> Unit) {
     ) {
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             val compact = maxHeight < 680.dp
+            val heroHeight = (maxHeight * 0.42f).coerceAtLeast(180.dp)
             Column(
                 Modifier
                     .fillMaxHeight()
@@ -66,37 +69,48 @@ fun IntroScreen(onStart: () -> Unit, onSignIn: () -> Unit) {
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
             ) {
-                // LogoMark already draws the wordmark beside the glyph.
-                LogoMark(size = 34.dp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-
-                WelcomeHero(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp)
-                        .clip(RoundedCornerShape(26.dp)),
-                )
-
+                // Scrolls (landscape, big font); the two buttons are pinned below.
                 Column(
                     Modifier
+                        .weight(1f)
                         .fillMaxWidth()
-                        .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = if (compact) 16.dp else 28.dp),
-                    verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp),
+                        .verticalScroll(rememberScrollState()),
                 ) {
-                    Text(
-                        stringResource(R.string.intro_welcome_to),
-                        style = RcxType.Body.copy(fontSize = 14.sp),
-                        color = c.muted,
+                    // LogoMark already draws the wordmark beside the glyph.
+                    LogoMark(size = 34.dp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+
+                    WelcomeHero(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(heroHeight)
+                            .padding(horizontal = 8.dp)
+                            .clip(RoundedCornerShape(26.dp)),
                     )
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text("RideConnect", style = RcxType.Wordmark.copy(fontSize = if (compact) 24.sp else 27.sp), color = c.text)
-                        Text("X", style = RcxType.Wordmark.copy(fontSize = if (compact) 24.sp else 27.sp), color = c.blue)
+
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.intro_welcome_to),
+                            style = RcxType.Body.copy(fontSize = 14.sp),
+                            color = c.muted,
+                        )
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text("RideConnect", style = RcxType.Wordmark.copy(fontSize = if (compact) 24.sp else 27.sp), color = c.text)
+                            Text("X", style = RcxType.Wordmark.copy(fontSize = if (compact) 24.sp else 27.sp), color = c.blue)
+                        }
+                        Text(
+                            stringResource(R.string.intro_tagline),
+                            style = RcxType.Body.copy(fontSize = 14.sp, lineHeight = 20.sp),
+                            color = c.muted,
+                        )
                     }
-                    Text(
-                        stringResource(R.string.intro_tagline),
-                        style = RcxType.Body.copy(fontSize = 14.sp, lineHeight = 20.sp),
-                        color = c.muted,
-                    )
+                }
+
+                BottomActions {
                     PrimaryButton(
                         label = stringResource(R.string.intro_start),
                         onClick = onStart,
@@ -110,16 +124,12 @@ fun IntroScreen(onStart: () -> Unit, onSignIn: () -> Unit) {
                             )
                         },
                     )
-                    TextButton(
+                    PrimaryButton(
+                        label = stringResource(R.string.intro_sign_in),
                         onClick = onSignIn,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    ) {
-                        Text(
-                            stringResource(R.string.intro_sign_in),
-                            style = RcxType.Body.copy(fontSize = 14.sp),
-                            color = c.blue,
-                        )
-                    }
+                        modifier = Modifier.fillMaxWidth(),
+                        secondary = true,
+                    )
                 }
             }
         }

@@ -19,9 +19,12 @@ import com.eshwar.rideconnectx.domain.repository.BleRepository
 import com.eshwar.rideconnectx.domain.repository.ConnectionState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
+import com.eshwar.rideconnectx.data.nav.ClusterAlerts
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -66,14 +69,57 @@ class SettingsViewModel @Inject constructor(
         combine(store.seenPackages, store.appSwitches) { seen, switches ->
             val sms = runCatching { android.provider.Telephony.Sms.getDefaultSmsPackage(context) }.getOrNull()
             buildNotificationApps(seen, switches, sms, ::appLabel)
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        }.flowOn(kotlinx.coroutines.Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setAppSwitch(pkg: String, on: Boolean) = appScope.launch { store.setAppSwitch(pkg, on) }
 
+    // Alerts page choices live in AppSettingsStore (DataStore). rcx-nav still has to read them in
+    // MapsNotificationListener.relayClusterAlert; the tier switches also flip the per-app switches nav already reads.
+    private fun alertFlow(f: kotlinx.coroutines.flow.Flow<Boolean>, default: Boolean): StateFlow<Boolean> =
+        f.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), default)
+    val clusterAlerts: StateFlow<Boolean> = alertFlow(store.alertsCluster, true)
+    val importantOn: StateFlow<Boolean> = alertFlow(store.alertsImportant, true)
+    val mediumOn: StateFlow<Boolean> = alertFlow(store.alertsMedium, false)
+    val nameOnly: StateFlow<Boolean> = alertFlow(store.alertsNameOnly, false)
+
+    fun setClusterAlerts(on: Boolean) { appScope.launch { store.setAlertsCluster(on) } }
+    fun setNameOnly(on: Boolean) { appScope.launch { store.setAlertsNameOnly(on) } }
+
+    fun setTierOn(tier: AppTier, on: Boolean) {
+        appScope.launch {
+            if (tier == AppTier.IMPORTANT) store.setAlertsImportant(on) else store.setAlertsMedium(on)
+            notificationApps.value.filter { it.tier == tier }.forEach { store.setAppSwitch(it.pkg, on) }
+        }
+    }
+
+    /** Message for the test button (a string resource id), null when nothing to say. */
+    private val _testResult = MutableStateFlow<Int?>(null)
+    val testResult: StateFlow<Int?> = _testResult
+
+    /** Sends one short message alert through the normal alert path; says so when the scooter is not connected. */
+    fun sendTestAlert() {
+        if (bleRepository.connectionState.value !is ConnectionState.Connected) {
+            _testResult.value = com.eshwar.rideconnectx.R.string.alerts_test_not_connected
+            return
+        }
+        val clean = ClusterAlerts.unreadCount.value == 0 && ClusterAlerts.missedCount.value == 0
+        ClusterAlerts.onNotification('N', "RideConnectX", "Test alert")
+        _testResult.value = com.eshwar.rideconnectx.R.string.alerts_test_sent
+        appScope.launch {
+            kotlinx.coroutines.delay(8_000)
+            // Leave real unread counts alone; only undo the test's own count and lamp.
+            if (clean) ClusterAlerts.resetCounts() else ClusterAlerts.clearNotification()
+            _testResult.value = null
+        }
+    }
+
     // An app Android hides from us (package visibility) falls back to its last package word.
-    private fun appLabel(pkg: String): String = runCatching {
-        context.packageManager.let { it.getApplicationLabel(it.getApplicationInfo(pkg, 0)).toString() }
-    }.getOrElse { fallbackAppLabel(pkg) }
+    private val labels = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private fun appLabel(pkg: String): String = labels.getOrPut(pkg) {
+        runCatching {
+            context.packageManager.let { it.getApplicationLabel(it.getApplicationInfo(pkg, 0)).toString() }
+        }.getOrElse { fallbackAppLabel(pkg) }
+    }
 
     val settings: StateFlow<AppSettings> =
         store.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
@@ -86,9 +132,24 @@ class SettingsViewModel @Inject constructor(
         serviceRepository.remindersEnabled
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
+    /** For the Service row's "Next: in X km" line. */
+    val serviceStatus: StateFlow<com.eshwar.rideconnectx.domain.model.ServiceStatus> =
+        serviceRepository.status
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.eshwar.rideconnectx.domain.model.ServiceStatus())
+
     val connectionState: StateFlow<ConnectionState> =
         bleRepository.connectionState
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConnectionState.Idle)
+
+    /** A scooter was paired before: Connect now has something to reconnect to. */
+    val hasSavedScooter: StateFlow<Boolean> = session.lastDeviceAddress
+        .map { !it.isNullOrBlank() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Reconnects to the last paired scooter (the repository does nothing if there is none). */
+    fun connectNow() = bleRepository.reconnectLastDevice()
+
+    fun disconnect() = bleRepository.disconnect()
 
     /** The vehicle the rider set up, for the Bluetooth section's summary row. */
     val vehicleName: StateFlow<String> = vehicleRepository.selection

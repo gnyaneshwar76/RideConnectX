@@ -519,19 +519,13 @@ fun ScreenBackdrop(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val c = Rcx.colors
-    if (isGlow) {
+    // One Box and one content() call: switching Flat/Glass/Glow only swaps the layer
+    // behind it, so the screen on top keeps its scroll position and remembered state.
+    Box(modifier.fillMaxSize().background(c.bg)) {
         // Glow replaces the page photo and pools, in Flat and in Glass.
-        Box(modifier.fillMaxSize().background(c.bg)) {
-            GlowField()
-            content()
-        }
-    } else if (LocalStyleMode.current == StyleMode.GLASS) {
-        Box(modifier.fillMaxSize().background(c.bg)) {
-            GlassLightField(photo = photo, accent = accent)
-            content()
-        }
-    } else {
-        Box(modifier.fillMaxSize().background(c.bg), content = content)
+        if (isGlow) GlowField()
+        else if (LocalStyleMode.current == StyleMode.GLASS) GlassLightField(photo = photo, accent = accent)
+        content()
     }
 }
 

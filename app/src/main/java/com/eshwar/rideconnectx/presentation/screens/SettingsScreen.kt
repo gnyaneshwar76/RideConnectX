@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -51,6 +52,8 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -73,6 +76,8 @@ import com.eshwar.rideconnectx.domain.repository.ConnectionState
 import com.eshwar.rideconnectx.R
 import com.eshwar.rideconnectx.presentation.components.BackHeader
 import com.eshwar.rideconnectx.presentation.components.PrimaryButton
+import com.eshwar.rideconnectx.presentation.components.DangerButton
+import com.eshwar.rideconnectx.presentation.components.SheetScaffold
 import com.eshwar.rideconnectx.presentation.components.RiderAvatar
 import com.eshwar.rideconnectx.presentation.components.SettingsChoiceRow
 import com.eshwar.rideconnectx.presentation.components.SettingsDivider
@@ -84,41 +89,54 @@ import com.eshwar.rideconnectx.presentation.theme.RcxType
 import com.eshwar.rideconnectx.presentation.viewmodel.SettingsViewModel
 
 /**
- * Screen 20 — Settings.
+ * Screen 20 — Settings root.
  *
- * The app's control centre. Everything saves the instant it changes; there is
- * no Save button, matching the design. Rows the app cannot honour yet are shown
- * and disabled rather than hidden — the design asks for unsupported settings to
- * be displayed, and a switch that silently does nothing is worse than one that
- * says why.
+ * Nine rows, each with a one-line subtitle, each opening its own page that has
+ * a way back. Everything on the pages saves the instant it changes. The rows
+ * are in the order the owner approved on 26 Nov 2026.
  */
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onProfile: () -> Unit,
+    onMyScooter: () -> Unit,
+    onService: () -> Unit,
+    onAlerts: () -> Unit,
     onAppearance: () -> Unit,
-    onAbout: () -> Unit,
     onPermissions: () -> Unit,
     onPrivacy: () -> Unit,
-    onTerms: () -> Unit,
-    onPairVehicle: () -> Unit,
-    onProfile: () -> Unit,
+    onAbout: () -> Unit,
+    onDiagnostics: () -> Unit,
     vm: SettingsViewModel = hiltViewModel(),
 ) {
     val c = Rcx.colors
-    val context = LocalContext.current
     val s by vm.settings.collectAsStateWithLifecycle()
-    val serviceReminders by vm.serviceReminders.collectAsStateWithLifecycle()
     val connection by vm.connectionState.collectAsStateWithLifecycle()
     val vehicleName by vm.vehicleName.collectAsStateWithLifecycle()
     val account by vm.account.collectAsStateWithLifecycle()
-    val rideRecorder by vm.rideRecorder.collectAsStateWithLifecycle()
-    val gpsCountdown by vm.gpsCountdown.collectAsStateWithLifecycle()
-    val notifApps by vm.notificationApps.collectAsStateWithLifecycle()
+    val serviceStatus by vm.serviceStatus.collectAsStateWithLifecycle()
 
-    var showUnits by remember { mutableStateOf(false) }
-    var confirmForget by remember { mutableStateOf(false) }
-
-    val connected = connection is ConnectionState.Connected
+    val name = account.name.ifBlank { stringResource(R.string.common_rider) }
+    val profileSub = when {
+        account.isGuest -> stringResource(R.string.settings_profile_sub_guest, name)
+        account.email.isNotBlank() -> account.email
+        else -> name
+    }
+    val scooterSub = if (vehicleName.isBlank()) stringResource(R.string.my_scooter_none) else stringResource(
+        R.string.settings_scooter_sub,
+        vehicleName,
+        stringResource(if (connection is ConnectionState.Connected) R.string.dash_connected else R.string.my_scooter_not_connected),
+    )
+    val km = serviceStatus.remainingKm
+    val days = serviceStatus.remainingDays
+    val serviceSub = when {
+        !serviceStatus.hasBaseline -> stringResource(R.string.settings_service_none)
+        serviceStatus.isOverdue -> stringResource(R.string.settings_service_overdue)
+        km != null -> stringResource(R.string.settings_service_next, s.distanceUnit.format(km))
+        days != null -> stringResource(R.string.settings_service_next_days, days)
+        else -> stringResource(R.string.settings_service_none)
+    }
+    val shape = RoundedCornerShape(20.dp)
 
     ScreenBackdrop(photo = R.drawable.img_permissions_hero, accent = c.blue) {
         Column(
@@ -136,320 +154,61 @@ fun SettingsScreen(
             LazyColumn(
                 state = headerList,
                 contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                // ── Account ──────────────────────────────────────────
-                // The rider's first question about this screen was "where is
-                // the profile" — so it is the first thing on it now.
                 item {
-                    AccountCard(
-                        name = account.name.ifBlank { stringResource(R.string.common_rider) },
-                        email = account.email,
-                        isGuest = account.isGuest,
-                        onClick = onProfile,
-                    )
+                    Column(Modifier.fillMaxWidth().clip(shape).cardSurface(shape).padding(vertical = 6.dp)) {
+                        SettingsLinkRow(stringResource(R.string.settings_profile), profileSub, onClick = onProfile)
+                        SettingsDivider()
+                        SettingsLinkRow(stringResource(R.string.settings_my_scooter), scooterSub, onClick = onMyScooter)
+                        SettingsDivider()
+                        SettingsLinkRow(stringResource(R.string.service_title), serviceSub, onClick = onService)
+                    }
                 }
-
-                // ── General ──────────────────────────────────────────
                 item {
-                    SettingsGroup(stringResource(R.string.settings_general), Icons.Filled.Tune) {
+                    Column(Modifier.padding(top = 16.dp).fillMaxWidth().clip(shape).cardSurface(shape).padding(vertical = 6.dp)) {
+                        SettingsLinkRow(stringResource(R.string.settings_alerts), stringResource(R.string.settings_alerts_sub), onClick = onAlerts)
+                        SettingsDivider()
                         SettingsLinkRow(
-                            title = stringResource(R.string.settings_appearance),
-                            subtitle = stringResource(R.string.settings_appearance_sub),
+                            stringResource(R.string.settings_appearance_units),
+                            stringResource(R.string.settings_appearance_units_sub),
+                            value = s.distanceUnit.short,
                             onClick = onAppearance,
                         )
                         SettingsDivider()
-                        SettingsLinkRow(
-                            title = stringResource(R.string.settings_units),
-                            subtitle = stringResource(R.string.settings_units_sub),
-                            value = s.distanceUnit.short,
-                            onClick = { showUnits = true },
-                        )
+                        SettingsLinkRow(stringResource(R.string.settings_permissions), stringResource(R.string.settings_permissions_sub), onClick = onPermissions)
                     }
                 }
-
-                // ── Bluetooth ────────────────────────────────────────
                 item {
-                    SettingsGroup(stringResource(R.string.settings_bluetooth), Icons.Filled.Bluetooth) {
-                        ConnectedVehicleRow(
-                            vehicleName = vehicleName,
-                            connected = connected,
-                            onPair = onPairVehicle,
-                        )
+                    Column(Modifier.padding(top = 16.dp).fillMaxWidth().clip(shape).cardSurface(shape).padding(vertical = 6.dp)) {
+                        SettingsLinkRow(stringResource(R.string.settings_privacy_terms), stringResource(R.string.settings_privacy_terms_sub), onClick = onPrivacy)
                         SettingsDivider()
-                        SettingsLinkRow(
-                            title = stringResource(R.string.settings_forget),
-                            subtitle = stringResource(R.string.settings_forget_sub),
-                            accent = c.red,
-                            chevron = false,
-                            onClick = { confirmForget = true },
-                        )
+                        SettingsLinkRow(stringResource(R.string.settings_help), stringResource(R.string.settings_help_sub), onClick = onAbout)
+                        SettingsDivider()
+                        SettingsLinkRow(stringResource(R.string.settings_diagnostics), stringResource(R.string.settings_diagnostics_sub), onClick = onDiagnostics)
                     }
                 }
-
-                // The Navigation section is gone on purpose. Voice guidance,
-                // traffic, tolls, highways and map type all belong to Google
-                // Maps — setting them here changed nothing at all, which is
-                // worse than not offering them.
-
-                // ── Notifications ────────────────────────────────────
-                item {
-                    SettingsGroup(stringResource(R.string.settings_notifications), Icons.Filled.Notifications) {
-                        // "Ride notifications" (summaries when a ride ends) is
-                        // hidden until rides are recorded: nothing records one
-                        // yet, so the switch could never do anything (AUD-4).
-                        SettingsToggleRow(
-                            title = stringResource(R.string.settings_service_reminders),
-                            subtitle = stringResource(R.string.settings_service_reminders_sub),
-                            checked = serviceReminders,
-                            onCheckedChange = vm::setServiceReminders,
-                        )
-                        SettingsDivider()
-                        SettingsToggleRow(
-                            title = stringResource(R.string.settings_connection_alerts),
-                            subtitle = stringResource(R.string.settings_connection_alerts_sub),
-                            checked = s.connectionAlerts,
-                            onCheckedChange = vm::setConnectionAlerts,
-                        )
-                        // Marketing notifications removed — the app does not
-                        // send any, so a switch for them was pure noise.
-                    }
-                }
-
-                // ── Alert apps ───────────────────────────────────────
-                // Fills itself from the apps that posted; ignored apps never appear.
-                item {
-                    SettingsGroup(stringResource(R.string.settings_notif_apps), Icons.Filled.Notifications) {
-                        if (notifApps.isEmpty()) {
-                            Text(
-                                stringResource(R.string.settings_notif_empty),
-                                style = RcxType.BodySmall.copy(fontSize = 12.sp),
-                                color = c.muted,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            )
-                        }
-                        notifApps.groupBy { it.tier }.forEach { (tier, apps) ->
-                            Text(
-                                stringResource(if (tier == AppTier.IMPORTANT) R.string.settings_notif_important else R.string.settings_notif_medium),
-                                style = RcxType.Label.copy(fontSize = 12.sp),
-                                color = c.muted,
-                                modifier = Modifier.padding(horizontal = 16.dp).semantics { heading() },
-                            )
-                            apps.forEach { app ->
-                                SettingsToggleRow(
-                                    title = app.label,
-                                    subtitle = stringResource(if (tier == AppTier.IMPORTANT) R.string.settings_notif_important_sub else R.string.settings_notif_medium_sub),
-                                    checked = app.on,
-                                    onCheckedChange = { vm.setAppSwitch(app.pkg, it) },
-                                    leading = { AppIcon(app.pkg) },
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // ── Ride testing ─────────────────────────────────────
-                // Records every instruction sent to the cluster (what Maps said,
-                // the code, the exact bytes, delivered or not, reroutes), so a
-                // ride can be checked against what the dashboard showed.
-                item {
-                    SettingsGroup("Ride testing", Icons.Filled.Tune) {
-                        SettingsToggleRow(
-                            title = "Ride recorder",
-                            subtitle = "Save every instruction sent to your scooter during navigation. Saved only on this phone",
-                            checked = rideRecorder,
-                            onCheckedChange = vm::setRideRecorder,
-                        )
-                        SettingsDivider()
-                        SettingsToggleRow(
-                            title = "Live metre countdown",
-                            subtitle = "Phone GPS counts the metres down between Maps updates (takes effect on the next route)",
-                            checked = gpsCountdown,
-                            onCheckedChange = vm::setGpsCountdown,
-                        )
-                        SettingsDivider()
-                        SettingsLinkRow(
-                            title = "Share ride log",
-                            subtitle = "Send the recording to yourself or a tester. It contains caller/sender names and destinations",
-                            onClick = {
-                                val f = vm.rideLogFile()
-                                android.widget.Toast.makeText(context, context.getString(R.string.ride_log_share_warning), android.widget.Toast.LENGTH_LONG).show()
-                                if (f == null) {
-                                    android.widget.Toast.makeText(context, "Nothing recorded yet", android.widget.Toast.LENGTH_SHORT).show()
-                                } else {
-                                    val uri = androidx.core.content.FileProvider.getUriForFile(
-                                        context, context.packageName + ".files", f,
-                                    )
-                                    val send = android.content.Intent(android.content.Intent.ACTION_SEND)
-                                        .setType("text/plain")
-                                        .putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                                        .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    context.startActivity(android.content.Intent.createChooser(send, "Share ride log"))
-                                }
-                            },
-                        )
-                        SettingsDivider()
-                        SettingsLinkRow(
-                            title = "Clear ride log",
-                            subtitle = "Delete the recording from this phone",
-                            onClick = {
-                                vm.clearRideLog()
-                                android.widget.Toast.makeText(context, "Ride log cleared", android.widget.Toast.LENGTH_SHORT).show()
-                            },
-                        )
-                    }
-                }
-
-                // ── Permissions ──────────────────────────────────────
-                item {
-                    SettingsGroup(stringResource(R.string.settings_permissions), Icons.Filled.Lock) {
-                        SettingsLinkRow(
-                            title = stringResource(R.string.settings_app_permissions),
-                            subtitle = stringResource(R.string.settings_app_permissions_sub),
-                            onClick = onPermissions,
-                        )
-                        SettingsDivider()
-                        SettingsLinkRow(
-                            title = stringResource(R.string.settings_app_info),
-                            subtitle = stringResource(R.string.settings_app_info_sub),
-                            onClick = {
-                                context.startActivity(
-                                    Intent(
-                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                        Uri.fromParts("package", context.packageName, null),
-                                    )
-                                )
-                            },
-                        )
-                    }
-                }
-
-                // ── Privacy ──────────────────────────────────────────
-                item {
-                    SettingsGroup(stringResource(R.string.settings_privacy), Icons.Filled.Shield) {
-                        SettingsLinkRow(title = stringResource(R.string.common_privacy_policy), onClick = onPrivacy)
-                        SettingsDivider()
-                        SettingsLinkRow(title = stringResource(R.string.settings_terms), onClick = onTerms)
-                    }
-                }
-
-                // ── About ────────────────────────────────────────────
-                item {
-                    SettingsGroup(stringResource(R.string.settings_about), Icons.Filled.Info) {
-                        SettingsLinkRow(
-                            title = stringResource(R.string.settings_app_version),
-                            value = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                            chevron = false,
-                        )
-                        SettingsDivider()
-                        SettingsLinkRow(title = "About RideConnectX", onClick = onAbout)
-                    }
-                }
-
-                // "Reset all settings" removed at the rider's request — with
-                // this many options gone there is little left to reset, and it
-                // was one destructive action too many on a settings screen.
             }
         }
     }
-
-    if (showUnits) {
-        ChoiceSheet(
-            title = stringResource(R.string.settings_units),
-            onDismiss = { showUnits = false },
-        ) {
-            DistanceUnit.entries.forEach { unit ->
-                SettingsChoiceRow(
-                    title = unit.label,
-                    subtitle = "Distances shown in ${unit.short}",
-                    selected = s.distanceUnit == unit,
-                    onSelect = {
-                        vm.setDistanceUnit(unit)
-                        showUnits = false
-                    },
-                )
-            }
-        }
-    }
-
-
-    if (confirmForget) {
-        ConfirmSheet(
-            title = "Forget this vehicle?",
-            body = "RideConnectX will disconnect and stop reconnecting on its own. " +
-                "You can pair again at any time.",
-            confirmLabel = "Forget",
-            onDismiss = { confirmForget = false },
-            onConfirm = {
-                vm.forgetVehicle()
-                confirmForget = false
-            },
-        )
-    }
 }
 
-/**
- * Who is signed in, at the top of Settings, opening the Profile screen.
- *
- * Settings with no sign of the account was the reason Profile felt missing —
- * it existed, but nothing on the screen the rider was looking at pointed to it.
- */
-@Composable
-private fun AccountCard(
-    name: String,
-    email: String,
-    isGuest: Boolean,
-    onClick: () -> Unit,
-) {
-    val c = Rcx.colors
-    val shape = RoundedCornerShape(20.dp)
-
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .cardSurface(shape)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RiderAvatar(name = name, size = 52.dp)
-
-        Column(Modifier.weight(1f)) {
-            Text(name, style = RcxType.Section.copy(fontSize = 17.sp), color = c.text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Spacer(Modifier.height(3.dp))
-            Text(
-                when {
-                    isGuest -> "Guest — saved only on this phone"
-                    email.isNotBlank() -> email
-                    else -> "Tap to manage your profile"
-                },
-                style = RcxType.BodySmall.copy(fontSize = 12.sp),
-                color = c.muted,
-            )
-        }
-
-        Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight, null,
-            Modifier.size(16.dp), tint = c.muted.copy(alpha = 0.44f),
-        )
-    }
-}
+private val iconCache = java.util.concurrent.ConcurrentHashMap<String, androidx.compose.ui.graphics.ImageBitmap>()
 
 /** The app's own icon; a bell when Android hides that package from us (package visibility). */
 @Composable
-private fun AppIcon(pkg: String) {
+internal fun AppIcon(pkg: String) {
     val context = LocalContext.current
-    val bitmap = remember(pkg) {
-        runCatching {
-            context.packageManager.getApplicationIcon(pkg).toBitmap(96, 96)
-                .asImageBitmap()
-        }.getOrNull()
+    val bitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(iconCache[pkg], pkg) {
+        value = iconCache[pkg] ?: withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                context.packageManager.getApplicationIcon(pkg).toBitmap(96, 96).asImageBitmap()
+            }.getOrNull()
+        }?.also { iconCache[pkg] = it }
     }
     val shape = RoundedCornerShape(10.dp)
-    if (bitmap != null) {
-        androidx.compose.foundation.Image(bitmap, null, Modifier.size(34.dp).clip(shape))
+    val bmp = bitmap
+    if (bmp != null) {
+        androidx.compose.foundation.Image(bmp, null, Modifier.size(34.dp).clip(shape))
     } else {
         Box(Modifier.size(34.dp).clip(shape).background(Rcx.colors.muted.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.Notifications, null, Modifier.size(16.dp), tint = Rcx.colors.muted)
@@ -457,50 +216,10 @@ private fun AppIcon(pkg: String) {
     }
 }
 
-/** The Bluetooth section's summary row: which vehicle, and is it live. */
-@Composable
-private fun ConnectedVehicleRow(
-    vehicleName: String,
-    connected: Boolean,
-    onPair: () -> Unit,
-) {
-    val c = Rcx.colors
-    val accent = if (connected) c.green else c.muted
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onPair)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(accent.copy(alpha = 0.094f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Filled.Bluetooth, null, Modifier.size(16.dp), tint = accent)
-        }
-        Column(Modifier.weight(1f)) {
-            Text(
-                vehicleName.ifBlank { "No vehicle selected" },
-                style = RcxType.Label.copy(fontSize = 14.sp),
-                color = c.text,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                if (connected) "Connected" else "Not connected",
-                style = RcxType.BodySmall.copy(fontSize = 12.sp),
-                color = if (connected) c.green else c.muted,
-            )
-        }
-        Box(Modifier.size(8.dp).clip(CircleShape).background(accent))
-    }
-}
-
+/** A short list of choices in a bottom sheet; scrolls when it is taller than the screen. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChoiceSheet(
+internal fun ChoiceSheet(
     title: String,
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
@@ -511,22 +230,23 @@ private fun ChoiceSheet(
         sheetState = rememberModalBottomSheetState(),
         containerColor = sheetContainerColor(),
     ) {
-        androidx.compose.foundation.layout.Column(Modifier.sheetEnter()) {
-        GlassSheetWindow()
-        Column(Modifier.padding(horizontal = 8.dp).padding(bottom = 32.dp)) {
+        SheetScaffold {
             Text(
                 title,
                 style = RcxType.Section.copy(fontSize = 17.sp),
                 color = c.text,
-                modifier = Modifier.padding(start = 16.dp, bottom = 12.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
             )
             content()
         }
     }
-    }
 }
 
-/** Shared confirmation, used wherever the design says "confirm before…". */
+/**
+ * Shared confirmation, used wherever the design says "confirm before...".
+ * Buttons are pinned under a scrolling body, stacked: the safe choice first,
+ * the red one last.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfirmSheet(
@@ -541,14 +261,23 @@ fun ConfirmSheet(
     destructive: Boolean = true,
 ) {
     val c = Rcx.colors
+    val cancel = stringResource(R.string.common_cancel)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(),
         containerColor = sheetContainerColor(),
     ) {
-        androidx.compose.foundation.layout.Column(Modifier.sheetEnter()) {
-        GlassSheetWindow()
-        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
+        SheetScaffold(
+            buttons = {
+                if (destructive) {
+                    PrimaryButton(cancel, onDismiss, secondary = true, modifier = Modifier.fillMaxWidth())
+                    DangerButton(confirmLabel, onConfirm, modifier = Modifier.fillMaxWidth())
+                } else {
+                    PrimaryButton(confirmLabel, onConfirm, modifier = Modifier.fillMaxWidth())
+                    PrimaryButton(cancel, onDismiss, secondary = true, modifier = Modifier.fillMaxWidth())
+                }
+            },
+        ) {
             Text(title, style = RcxType.Section.copy(fontSize = 17.sp), color = c.text)
             Spacer(Modifier.height(8.dp))
             Text(body, style = RcxType.BodySmall.copy(fontSize = 13.sp), color = c.muted)
@@ -556,29 +285,6 @@ fun ConfirmSheet(
                 Spacer(Modifier.height(16.dp))
                 it()
             }
-            Spacer(Modifier.height(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PrimaryButton("Cancel", onDismiss, secondary = true, modifier = Modifier.weight(1f))
-                if (!destructive) PrimaryButton(confirmLabel, onConfirm, modifier = Modifier.weight(1f))
-                else Box(
-                    Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(c.red.copy(alpha = 0.094f))
-                        .border(1.5.dp, c.red.copy(alpha = 0.31f), RoundedCornerShape(16.dp))
-                        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onConfirm),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        confirmLabel,
-                        style = RcxType.Button,
-                        color = c.red,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
         }
-    }
     }
 }

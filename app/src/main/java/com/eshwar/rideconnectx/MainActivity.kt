@@ -226,6 +226,7 @@ class MainActivity : ComponentActivity() {
                     // background and the scooter link (held by the foreground
                     // service) stays. Never finish() here: onDestroy would shut
                     // the link down.
+                    val lastBackAt = remember { longArrayOf(0L) }
                     BackHandler(enabled = true) {
                         if (navController.currentDestination?.route ==
                             com.eshwar.rideconnectx.presentation.navigation.Routes.DASHBOARD
@@ -234,7 +235,13 @@ class MainActivity : ComponentActivity() {
                         } else if (navController.previousBackStackEntry != null) {
                             navController.popBackStack()
                         } else {
-                            finish()
+                            // N138: a root screen such as Welcome asks twice before it leaves.
+                            val now = android.os.SystemClock.elapsedRealtime()
+                            if (now - lastBackAt[0] < 2_000L) finish()
+                            else {
+                                lastBackAt[0] = now
+                                android.widget.Toast.makeText(this@MainActivity, "Press back again to exit", android.widget.Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
 

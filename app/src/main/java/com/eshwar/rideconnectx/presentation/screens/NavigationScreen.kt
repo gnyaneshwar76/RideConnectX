@@ -128,9 +128,11 @@ fun NavigationScreen(
             )
         } catch (_: ActivityNotFoundException) {
             // Maps isn't installed — fall back to the browser rather than crash.
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse("https://maps.google.com/"))
-            )
+            try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://maps.google.com/")))
+            } catch (_: ActivityNotFoundException) {
+                android.widget.Toast.makeText(context, R.string.nav_no_maps, android.widget.Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -210,7 +212,8 @@ fun NavigationScreen(
                     Readout("Distance", maneuver?.remainingDistance?.ifBlank { null } ?: "—", false, Modifier.weight(1f))
                     Divider()
                     // Speed comes from the bike, so it is live even with no route.
-                    Readout("Speed", speed?.let { "$it km/h" } ?: "—", true, Modifier.weight(1f))
+                    val speedUnit = com.eshwar.rideconnectx.presentation.theme.LocalDistanceUnit.current
+                    Readout("Speed", speed?.let { "${speedUnit.fromKm(it)} ${speedUnit.speed}" } ?: "—", true, Modifier.weight(1f))
                 }
 
                 // Setup check: ONE line naming what is missing, one tap to fix it.

@@ -32,8 +32,8 @@ val LightRed = Color(0xFFB44946)
 val LightBorder = Color(0xFFE3E5E9)
 val LightOuterBg = Color(0xFFE9EBEE)
 
-/** Default accent (Soft teal). Theme.kt swaps in the rider's palette. */
-val RcxBlue = Color(0xFF2A8C7E)
+/** Default accent (Calm blue). Theme.kt swaps in the rider's palette. */
+val RcxBlue = Color(0xFF3B6FD4)
 
 /**
  * The full set of colours a screen can use. Mirrors the `CT` type in the design.

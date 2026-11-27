@@ -25,7 +25,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.eshwar.rideconnectx.presentation.components.BottomActions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -79,10 +81,17 @@ fun ProfileFoundScreen(
                 .safeDrawingCentred()
                 .contentWidth()
                 .fillMaxWidth()
-                .align(Alignment.TopCenter)
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.Center,
+                .align(Alignment.TopCenter),
         ) {
+          // Scrolls; the two buttons are pinned below it.
+          Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.Center,
+          ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Default.Group,
@@ -144,36 +153,30 @@ fun ProfileFoundScreen(
                 Text(it, style = RcxType.Body.copy(fontSize = 13.sp), color = c.red)
             }
 
-            Spacer(Modifier.height(28.dp))
-
-            PrimaryButton(
-                label = if (busy) "Adding…" else "Add to this account",
-                onClick = { vm.add(onAdded) },
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(6.dp))
-
-            TextButton(
-                onClick = { vm.chooseAnother(onChooseAnother) },
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    "Choose another account",
-                    style = RcxType.Body.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium),
-                    color = c.muted,
-                )
-            }
-
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(16.dp))
             Text(
                 "Your guest data stays on this phone until you decide.",
                 style = RcxType.Body.copy(fontSize = 12.sp),
                 color = c.muted,
                 modifier = Modifier.fillMaxWidth(),
             )
+          }
+
+          BottomActions {
+            PrimaryButton(
+                label = if (busy) "Adding…" else "Add to this account",
+                onClick = { vm.add(onAdded) },
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            PrimaryButton(
+                label = "Choose another account",
+                onClick = { vm.chooseAnother(onChooseAnother) },
+                enabled = !busy,
+                secondary = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+          }
         }
     }
 }

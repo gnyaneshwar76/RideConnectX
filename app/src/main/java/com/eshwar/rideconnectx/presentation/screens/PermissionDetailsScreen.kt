@@ -1,11 +1,8 @@
 package com.eshwar.rideconnectx.presentation.screens
 
-import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
-import com.eshwar.rideconnectx.presentation.components.contentWidth
-import com.eshwar.rideconnectx.R
-import com.eshwar.rideconnectx.presentation.theme.innerFill
-import com.eshwar.rideconnectx.presentation.theme.cardFill
-import com.eshwar.rideconnectx.presentation.theme.ScreenBackdrop
+import android.bluetooth.BluetoothManager
+import android.content.Context
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,22 +12,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.BatterySaver
+import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Image
@@ -38,63 +32,164 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.SignalCellularAlt
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.compose.material.icons.filled.Lock
-import com.eshwar.rideconnectx.core.util.AppPermission
-import com.eshwar.rideconnectx.core.util.rememberBackgroundRunAccess
+import com.eshwar.rideconnectx.R
 import com.eshwar.rideconnectx.core.util.AppPermissions
 import com.eshwar.rideconnectx.core.util.PermState
+import com.eshwar.rideconnectx.core.util.rememberBackgroundRunAccess
 import com.eshwar.rideconnectx.core.util.rememberNotificationAccess
 import com.eshwar.rideconnectx.core.util.rememberPermissionsController
+import com.eshwar.rideconnectx.core.util.rememberSystemServices
 import com.eshwar.rideconnectx.presentation.components.BackHeader
+import com.eshwar.rideconnectx.presentation.components.contentWidth
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
 import com.eshwar.rideconnectx.presentation.theme.Rcx
 import com.eshwar.rideconnectx.presentation.theme.RcxType
+import com.eshwar.rideconnectx.presentation.theme.ScreenBackdrop
+import com.eshwar.rideconnectx.presentation.theme.cardFill
+import com.eshwar.rideconnectx.presentation.theme.innerFill
+import com.eshwar.rideconnectx.presentation.theme.mainButtonFill
+import com.eshwar.rideconnectx.presentation.theme.mainButtonText
 
 /**
- * Permission details — reached from Settings → Privacy → Permissions.
- *
- * Every permission the app can ask for, what it is actually used for, and
- * whether it is on right now. The introduction explains the essentials before
- * asking; this is the page the rider comes back to afterwards, to grant
- * something they skipped or to check what the app can see.
- *
- * Modelled on the original app's "Application Permission Requirements" page —
- * icon, name, and a plain sentence about what it enables — with the state and
- * a working control added, which the original does not have.
+ * Permissions, reached from Settings. Three groups (Required, Recommended,
+ * Optional); every row reads "Allowed" or shows one Allow button that does the
+ * right thing for that permission. State is re-read on every return from system
+ * settings (ON_RESUME). Handled: denied, permanently denied (opens the app's
+ * settings page), Bluetooth absent or off, location services off, notifications
+ * switched off in Android, and the greyed-out Notification access switch that
+ * Android 13+ shows for apps installed outside the Play Store.
  */
 @Composable
 fun PermissionDetailsScreen(onBack: () -> Unit) {
     val c = Rcx.colors
+    val context = LocalContext.current
     val perms = rememberPermissionsController()
     val notificationAccess = rememberNotificationAccess()
     val backgroundRun = rememberBackgroundRunAccess()
+    val services = rememberSystemServices()
 
     // Granting happens in system UI, so the state is re-read on every return.
-    val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(lifecycleOwner) {
+    // The tick re-reads the two checks that are not state-backed (notifications
+    // switched off in Android, Bluetooth hardware).
+    var resumes by remember { mutableIntStateOf(0) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 perms.refresh()
-                notificationAccess.refresh()
                 backgroundRun.refresh()
+                resumes++
             }
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
     }
+    val notificationsOn = remember(resumes) { NotificationManagerCompat.from(context).areNotificationsEnabled() }
+    val hasBluetooth = remember(resumes) { context.hasBluetoothAdapter() }
+
+    // Same wording the rows use for the three states a runtime permission can be in.
+    val hintBlocked = stringResource(R.string.perm_hint_blocked)
+    val allow = stringResource(R.string.perm_allow)
+    val openSettings = stringResource(R.string.perm_open_settings)
+    val turnOn = stringResource(R.string.perm_turn_on)
+
+    fun runtimeRow(
+        p: com.eshwar.rideconnectx.core.util.AppPermission,
+        icon: ImageVector,
+        extraOk: Boolean = true,
+        extraHint: String? = null,
+        extraLabel: String = turnOn,
+        extraAction: () -> Unit = {},
+    ): PermRow {
+        val state = perms.state(p)
+        val blocked = state == PermState.PermanentlyDenied
+        return when {
+            state != PermState.Granted -> PermRow(
+                icon = icon, label = "", desc = "", granted = false,
+                actionLabel = if (blocked) openSettings else allow,
+                onAction = if (blocked) perms::openAppSettings else { { perms.request(p) } },
+                hint = if (blocked) hintBlocked else null,
+                busy = state == PermState.Requesting,
+                permission = p,
+            )
+            !extraOk -> PermRow(
+                icon = icon, label = "", desc = "", granted = false,
+                actionLabel = extraLabel, onAction = extraAction, hint = extraHint, permission = p,
+            )
+            else -> PermRow(icon = icon, label = "", desc = "", granted = true, permission = p)
+        }
+    }
+
+    val bluetoothRow = if (!hasBluetooth) {
+        PermRow(
+            icon = Icons.Filled.Bluetooth, label = "", desc = "", granted = false,
+            hint = stringResource(R.string.perm_hint_bt_none), unavailable = true,
+            permission = AppPermissions.bluetooth,
+        )
+    } else runtimeRow(
+        AppPermissions.bluetooth, Icons.Filled.Bluetooth,
+        extraOk = services.bluetoothOn,
+        extraHint = stringResource(R.string.perm_hint_bt_off),
+        extraAction = services.turnOnBluetooth,
+    )
+    val locationRow = runtimeRow(
+        AppPermissions.location, Icons.Filled.LocationOn,
+        extraOk = services.locationOn,
+        extraHint = stringResource(R.string.perm_hint_loc_off),
+        extraAction = services.openLocationSettings,
+    )
+    // A granted runtime permission can still be overridden by the app's notification switch.
+    val notificationsRow = runtimeRow(
+        AppPermissions.notifications, Icons.Filled.Notifications,
+        extraOk = notificationsOn,
+        extraHint = stringResource(R.string.perm_hint_notif_off),
+        extraLabel = openSettings,
+        extraAction = perms::openAppSettings,
+    )
+    val restricted = !notificationAccess.granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+    val notifAccessRow = PermRow(
+        icon = Icons.Filled.NotificationsActive,
+        label = stringResource(R.string.perm_notif_access),
+        desc = stringResource(R.string.perm_notif_access_desc),
+        granted = notificationAccess.granted,
+        actionLabel = allow,
+        onAction = notificationAccess.openSettings,
+        hint = if (restricted) stringResource(R.string.perm_hint_restricted) else null,
+        onHint = if (restricted) perms::openAppSettings else null,
+    )
+    val bgRow = PermRow(
+        icon = Icons.Filled.BatterySaver,
+        label = stringResource(R.string.perm_bgrun),
+        desc = stringResource(R.string.perm_bgrun_desc),
+        granted = backgroundRun.granted,
+        actionLabel = allow,
+        onAction = backgroundRun.request,
+    )
 
     ScreenBackdrop(photo = R.drawable.img_permissions_hero, accent = c.amber) {
         Column(
@@ -105,250 +200,223 @@ fun PermissionDetailsScreen(onBack: () -> Unit) {
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
-            val headerList = androidx.compose.foundation.lazy.rememberLazyListState()
-            BackHeader(title = "Permissions", onBack = onBack, lifted = headerList.canScrollBackward)
+            val listState = rememberLazyListState()
+            BackHeader(
+                title = stringResource(R.string.perm_page_title),
+                onBack = onBack,
+                lifted = listState.canScrollBackward,
+            )
 
             LazyColumn(
-                state = headerList,
+                state = listState,
                 contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
                     Text(
-                        "What RideConnectX asks for, and why. Nothing here is " +
-                            "sent anywhere — every permission is used on this " +
-                            "phone, to put information on your vehicle's cluster.",
+                        stringResource(R.string.perm_page_intro),
                         style = RcxType.BodySmall.copy(fontSize = 13.sp),
                         color = c.text.copy(alpha = 0.88f),
                         modifier = Modifier.padding(bottom = 4.dp),
                     )
                 }
-
-                item { PermissionGroupHeader("Required") }
-                items(AppPermissions.essential.filter { it.required }, key = { it.id }) { p ->
-                    PermissionCard(
-                        permission = p,
-                        icon = p.icon(),
-                        state = perms.state(p),
-                        onGrant = { perms.request(p) },
-                        onOpenSettings = perms::openAppSettings,
-                    )
-                }
-
-                item { PermissionGroupHeader("Recommended") }
-                items(
-                    AppPermissions.essential.filterNot { it.required } + AppPermissions.optional,
-                    key = { it.id },
-                ) { p ->
-                    PermissionCard(
-                        permission = p,
-                        icon = p.icon(),
-                        state = perms.state(p),
-                        onGrant = { perms.request(p) },
-                        onOpenSettings = perms::openAppSettings,
-                    )
-                }
-
-                item { PermissionGroupHeader("Special access") }
-
                 item {
-                    // Not a runtime permission — it is granted in a dedicated
-                    // system page, so there is no dialog to show, only a link.
-                    SpecialAccessCard(
-                        icon = Icons.Filled.NotificationsActive,
-                        label = "Notification access",
-                        why = stringResource(R.string.notif_access_why),
-                        granted = notificationAccess.granted,
-                        actionLabel = "Open notification access",
-                        onAction = notificationAccess.openSettings,
+                    PermGroup(
+                        stringResource(R.string.perm_group_required),
+                        listOf(notifAccessRow, bluetoothRow, locationRow),
                     )
                 }
-
                 item {
-                    SpecialAccessCard(
-                        icon = Icons.Filled.BatterySaver,
-                        label = "Run in the background",
-                        why = "Android may stop the connection while your phone " +
-                            "is in your pocket. Exempting RideConnectX from " +
-                            "battery optimisation keeps the link to your vehicle " +
-                            "alive for the whole ride.",
-                        // Reads the real exemption instead of always claiming
-                        // it is off, and asks with the system's own one-tap
-                        // dialog rather than dropping the rider on App info to
-                        // find the battery page themselves.
-                        granted = backgroundRun.granted,
-                        actionLabel = "Allow background running",
-                        onAction = backgroundRun.request,
+                    PermGroup(
+                        stringResource(R.string.perm_group_recommended),
+                        listOf(notificationsRow, bgRow),
                     )
                 }
-
-
                 item {
-                    NotAskedCard()
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PermissionGroupHeader(title: String) {
-    Text(
-        title.uppercase(),
-        style = RcxType.MonoTiny,
-        color = Rcx.colors.muted,
-        modifier = Modifier.padding(top = 10.dp, start = 2.dp, bottom = 2.dp),
-    )
-}
-
-@Composable
-private fun PermissionCard(
-    permission: AppPermission,
-    icon: ImageVector,
-    state: PermState,
-    onGrant: () -> Unit,
-    onOpenSettings: () -> Unit,
-) {
-    val c = Rcx.colors
-    val shape = RoundedCornerShape(18.dp)
-    val granted = state == PermState.Granted
-    val blocked = state == PermState.PermanentlyDenied
-    val accent = when {
-        granted -> c.green
-        blocked -> c.amber
-        permission.required -> c.blue
-        else -> c.muted
-    }
-
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .cardFill()
-            .border(1.dp, if (granted) accent.copy(alpha = 0.24f) else c.border, shape)
-            .padding(16.dp),
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(accent.copy(alpha = 0.11f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(icon, null, Modifier.size(18.dp), tint = accent)
-            }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    stringResource(permission.label),
-                    style = RcxType.Label.copy(fontSize = 15.sp),
-                    color = c.text,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    when {
-                        granted -> "Allowed"
-                        blocked -> "Blocked — change it in Settings"
-                        permission.required -> "Required"
-                        else -> "Optional"
-                    },
-                    style = RcxType.BodySmall.copy(fontSize = 11.sp),
-                    color = accent,
-                )
-            }
-            if (granted) {
-                Icon(Icons.Filled.Check, null, Modifier.size(18.dp), tint = c.green)
-            }
-        }
-
-        Spacer(Modifier.height(10.dp))
-        Text(
-            stringResource(permission.why),
-            style = RcxType.BodySmall.copy(fontSize = 12.sp),
-            color = c.muted,
-        )
-
-        if (!granted) {
-            Spacer(Modifier.height(12.dp))
-            PermissionAction(
-                label = if (blocked) "Open Settings" else "Allow",
-                accent = if (blocked) c.amber else c.blue,
-                onClick = if (blocked) onOpenSettings else onGrant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SpecialAccessCard(
-    icon: ImageVector,
-    label: String,
-    why: String,
-    granted: Boolean,
-    actionLabel: String,
-    onAction: () -> Unit,
-    showState: Boolean = true,
-) {
-    val c = Rcx.colors
-    val shape = RoundedCornerShape(18.dp)
-    val accent = if (granted) c.green else c.blue
-
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .cardFill()
-            .border(1.dp, if (granted) accent.copy(alpha = 0.24f) else c.border, shape)
-            .padding(16.dp),
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(accent.copy(alpha = 0.11f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(icon, null, Modifier.size(18.dp), tint = accent)
-            }
-            Column(Modifier.weight(1f)) {
-                Text(label, style = RcxType.Label.copy(fontSize = 15.sp), color = c.text)
-                if (showState) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        if (granted) "Allowed" else "Not allowed yet",
-                        style = RcxType.BodySmall.copy(fontSize = 11.sp),
-                        color = accent,
+                    PermGroup(
+                        stringResource(R.string.perm_group_optional),
+                        listOf(
+                            runtimeRow(AppPermissions.contacts, Icons.Filled.Contacts),
+                            runtimeRow(AppPermissions.photos, Icons.Filled.Image),
+                            // Declared in the manifest, so it is listed here too: signal bars on the display.
+                            runtimeRow(AppPermissions.phoneSignal, Icons.Filled.SignalCellularAlt),
+                        ),
                     )
                 }
+                item {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable(role = Role.Button, onClick = perms::openAppSettings),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        Text(
+                            stringResource(R.string.perm_app_info),
+                            style = RcxType.Label.copy(fontSize = 14.sp),
+                            color = c.blue,
+                            modifier = Modifier.padding(horizontal = 2.dp),
+                        )
+                    }
+                }
+                item { NotAskedCard() }
             }
-            if (granted) {
-                Icon(Icons.Filled.Check, null, Modifier.size(18.dp), tint = c.green)
-            }
-        }
-
-        Spacer(Modifier.height(10.dp))
-        Text(why, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.muted)
-
-        if (!granted) {
-            Spacer(Modifier.height(12.dp))
-            PermissionAction(label = actionLabel, accent = c.blue, onClick = onAction)
         }
     }
 }
 
 /**
- * States what the app deliberately does *not* ask for.
- *
- * Worth a card of its own: a rider comparing this app with the official one
- * will notice three permissions missing, and the honest answer is that they are
- * not needed rather than forgotten.
+ * One row. A blank [label] and [desc] mean "take them from [permission]"; the
+ * special-access rows (no AppPermission) pass their own text.
+ */
+private class PermRow(
+    val icon: ImageVector,
+    val label: String,
+    val desc: String,
+    val granted: Boolean,
+    val actionLabel: String? = null,
+    val onAction: () -> Unit = {},
+    val hint: String? = null,
+    val onHint: (() -> Unit)? = null,
+    val busy: Boolean = false,
+    val unavailable: Boolean = false,
+    val permission: com.eshwar.rideconnectx.core.util.AppPermission? = null,
+)
+
+@Composable
+private fun PermGroup(title: String, rows: List<PermRow>) {
+    val c = Rcx.colors
+    val shape = RoundedCornerShape(18.dp)
+    Column {
+        Text(
+            title.uppercase(),
+            style = RcxType.MonoTiny.copy(fontSize = 11.sp),
+            color = c.muted,
+            modifier = Modifier.padding(start = 2.dp, bottom = 6.dp),
+        )
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .cardFill()
+                .border(1.dp, c.border, shape),
+        ) {
+            rows.forEachIndexed { i, r ->
+                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(c.border))
+                PermRowView(r)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermRowView(r: PermRow) {
+    val c = Rcx.colors
+    val label = r.permission?.takeIf { r.label.isEmpty() }?.let { stringResource(it.label) } ?: r.label
+    val desc = r.permission?.takeIf { r.desc.isEmpty() }?.let { stringResource(it.description) } ?: r.desc
+    val accent = if (r.granted) c.green else c.blue
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 72.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(accent.copy(alpha = 0.11f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(r.icon, null, Modifier.size(18.dp), tint = accent)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(label, style = RcxType.Label.copy(fontSize = 15.sp), color = c.text)
+                Text(
+                    desc,
+                    style = RcxType.BodySmall.copy(fontSize = 12.sp),
+                    color = c.text.copy(alpha = 0.72f),
+                )
+            }
+            Box(Modifier.widthIn(min = 96.dp), contentAlignment = Alignment.CenterEnd) {
+                when {
+                    r.granted -> {
+                        val allowedDesc = stringResource(R.string.perm_allowed_for, label)
+                        Row(
+                            Modifier.semantics(mergeDescendants = true) { contentDescription = allowedDesc },
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Check, null, Modifier.size(16.dp), tint = c.green)
+                            Text(
+                                stringResource(R.string.perm_allowed),
+                                style = RcxType.Label.copy(fontSize = 14.sp),
+                                color = c.text,
+                            )
+                        }
+                    }
+                    r.unavailable -> Text(
+                        stringResource(R.string.perm_unavailable),
+                        style = RcxType.BodySmall.copy(fontSize = 13.sp),
+                        color = c.text.copy(alpha = 0.72f),
+                    )
+                    r.actionLabel != null -> {
+                        val buttonShape = RoundedCornerShape(12.dp)
+                        Box(
+                            Modifier
+                                .widthIn(min = 96.dp)
+                                .heightIn(min = 48.dp)
+                                .clip(buttonShape)
+                                .mainButtonFill(buttonShape)
+                                .semantics { contentDescription = "${r.actionLabel}: $label" }
+                                .clickable(enabled = !r.busy, role = Role.Button, onClick = r.onAction)
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (r.busy) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = mainButtonText,
+                                )
+                            } else {
+                                Text(
+                                    r.actionLabel,
+                                    style = RcxType.Label.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+                                    color = mainButtonText,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (r.hint != null) {
+            val hintModifier = if (r.onHint != null) {
+                Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = r.onHint)
+            } else Modifier.padding(top = 6.dp)
+            Box(hintModifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                Text(
+                    r.hint,
+                    style = RcxType.BodySmall.copy(fontSize = 12.sp),
+                    color = if (r.onHint != null) c.blue else c.amber,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * States what the app deliberately does not ask for. Every line is checked
+ * against the manifest and docs/PRIVACY-POLICY.md: no SMS, call log, call,
+ * microphone or camera permission is declared, and emergency contacts stay on
+ * the phone.
  */
 @Composable
 private fun NotAskedCard() {
@@ -364,15 +432,17 @@ private fun NotAskedCard() {
             .padding(16.dp),
     ) {
         Text(
-            "What RideConnectX never asks for",
+            stringResource(R.string.perm_never_title),
             style = RcxType.Label.copy(fontSize = 14.sp),
             color = c.text,
         )
         Spacer(Modifier.height(8.dp))
         listOf(
-            "Reading your SMS messages",
-            "Reading your call history",
-            "Placing phone calls",
+            R.string.perm_never_sms,
+            R.string.perm_never_calllog,
+            R.string.perm_never_calls,
+            R.string.perm_never_mic,
+            R.string.perm_never_contacts,
         ).forEach { line ->
             Row(
                 Modifier.padding(bottom = 6.dp),
@@ -382,41 +452,21 @@ private fun NotAskedCard() {
                     Modifier.padding(top = 6.dp).size(5.dp)
                         .clip(RoundedCornerShape(3.dp)).background(c.green)
                 )
-                Text(line, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.muted)
+                Text(
+                    stringResource(line),
+                    style = RcxType.BodySmall.copy(fontSize = 12.sp),
+                    color = c.text.copy(alpha = 0.72f),
+                )
             }
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            "The cluster's message and missed-call lamps are driven by " +
-                "notification access instead, and the Safety screen opens your " +
-                "dialer rather than calling for you.",
-            style = RcxType.BodySmall.copy(fontSize = 11.sp),
-            color = c.muted.copy(alpha = 0.75f),
+            stringResource(R.string.perm_never_note),
+            style = RcxType.BodySmall.copy(fontSize = 12.sp),
+            color = c.text.copy(alpha = 0.72f),
         )
     }
 }
 
-@Composable
-private fun PermissionAction(label: String, accent: Color, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(accent.copy(alpha = 0.09f))
-            .border(1.dp, accent.copy(alpha = 0.24f), shape)
-            .clickable(onClick = onClick)
-            .padding(vertical = 11.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(label, style = RcxType.Label.copy(fontSize = 13.sp), color = accent)
-    }
-}
-
-private fun AppPermission.icon(): ImageVector = when (id) {
-    "bluetooth" -> Icons.Filled.Bluetooth
-    "location" -> Icons.Filled.LocationOn
-    "notifications" -> Icons.Filled.Notifications
-    "phone_signal" -> Icons.Filled.SignalCellularAlt
-    else -> Icons.Filled.Check
-}
+private fun Context.hasBluetoothAdapter(): Boolean =
+    (getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter != null

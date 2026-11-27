@@ -1,55 +1,49 @@
 package com.eshwar.rideconnectx.presentation.screens
 
-import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
-import com.eshwar.rideconnectx.presentation.components.contentWidth
-import com.eshwar.rideconnectx.presentation.theme.sheetEnter
-import com.eshwar.rideconnectx.presentation.theme.innerFill
-import com.eshwar.rideconnectx.presentation.theme.sheetContainerColor
-import com.eshwar.rideconnectx.presentation.theme.GlassSheetWindow
-import com.eshwar.rideconnectx.presentation.theme.ScreenBackdrop
-import com.eshwar.rideconnectx.presentation.theme.cardSurface
-import androidx.compose.foundation.background
+import android.widget.Toast
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eshwar.rideconnectx.BuildConfig
 import com.eshwar.rideconnectx.R
 import com.eshwar.rideconnectx.presentation.components.BackHeader
@@ -58,23 +52,31 @@ import com.eshwar.rideconnectx.presentation.components.RcxPhotoFill
 import com.eshwar.rideconnectx.presentation.components.SettingsDivider
 import com.eshwar.rideconnectx.presentation.components.SettingsGroup
 import com.eshwar.rideconnectx.presentation.components.SettingsLinkRow
+import com.eshwar.rideconnectx.presentation.components.contentWidth
+import com.eshwar.rideconnectx.presentation.components.safeDrawingCentred
+import com.eshwar.rideconnectx.presentation.theme.GlassSheetWindow
 import com.eshwar.rideconnectx.presentation.theme.Rcx
 import com.eshwar.rideconnectx.presentation.theme.RcxType
+import com.eshwar.rideconnectx.presentation.theme.ScreenBackdrop
+import com.eshwar.rideconnectx.presentation.theme.cardSurface
+import com.eshwar.rideconnectx.presentation.theme.innerFill
+import com.eshwar.rideconnectx.presentation.theme.sheetContainerColor
+import com.eshwar.rideconnectx.presentation.theme.sheetEnter
+import kotlinx.coroutines.delay
+
+private enum class HelpSheet { WHATS_NEW, LICENCES }
 
 /**
- * Screen 23 — About.
- *
- * Version and build number come from `BuildConfig`, so they are always the
- * numbers actually installed. Everything on this screen works offline.
+ * Settings > Help and about. Report a problem, What's new, Licences, and the
+ * version card. "Connection details" (developer text) appears only after the
+ * version card is tapped 5 times.
  */
 @Composable
-fun AboutScreen(
-    onBack: () -> Unit,
-    onPrivacy: () -> Unit,
-    onTerms: () -> Unit,
-) {
-    val c = Rcx.colors
-    var sheet by remember { mutableStateOf<AboutSheet?>(null) }
+fun AboutScreen(onBack: () -> Unit) {
+    var sheet by rememberSaveable { mutableStateOf<HelpSheet?>(null) }
+    var taps by rememberSaveable { mutableStateOf(0) }
+    val context = LocalContext.current
+    val devOn = taps >= 5
 
     ScreenBackdrop(photo = R.drawable.img_about_header) {
         Column(
@@ -85,60 +87,62 @@ fun AboutScreen(
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
         ) {
-            val headerList = androidx.compose.foundation.lazy.rememberLazyListState()
-            BackHeader(title = stringResource(R.string.about_title), onBack = onBack, lifted = headerList.canScrollBackward)
+            val headerList = rememberLazyListState()
+            BackHeader(title = stringResource(R.string.settings_help), onBack = onBack, lifted = headerList.canScrollBackward)
 
             LazyColumn(
                 state = headerList,
                 contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                item { AppInformationCard() }
-
                 item {
-                    // Trimmed to what a rider actually opens this screen for.
-                    // The changelog duplicated What's new; open-source licences
-                    // are for open-source apps and this one is closed; and the
-                    // support section waits for a real support address rather
-                    // than showing the developer's personal one.
+                    AppInformationCard(onVersionTap = {
+                        if (taps < 5 && ++taps == 5) Toast.makeText(context, R.string.help_dev_on, Toast.LENGTH_SHORT).show()
+                    })
+                }
+                item {
                     SettingsGroup(stringResource(R.string.about_information), Icons.Filled.Description) {
-                        SettingsLinkRow(
-                            title = stringResource(R.string.about_whats_new),
-                            subtitle = "Version ${BuildConfig.VERSION_NAME}",
-                            onClick = { sheet = AboutSheet.WHATS_NEW },
-                        )
-                        SettingsDivider()
-                        val ctx = androidx.compose.ui.platform.LocalContext.current
                         val reportDesc = stringResource(R.string.about_report_desc)
                         SettingsLinkRow(
                             title = stringResource(R.string.about_report),
-                            modifier = Modifier.semantics { contentDescription = reportDesc },
-                            onClick = { com.eshwar.rideconnectx.core.util.openReportMail(ctx) },
+                            subtitle = reportDesc,
+                            onClick = { com.eshwar.rideconnectx.core.util.openReportMail(context) },
                         )
-                        ConnectionDetails()
                         SettingsDivider()
-                        SettingsLinkRow(title = stringResource(R.string.common_privacy_policy), onClick = onPrivacy)
+                        SettingsLinkRow(
+                            title = stringResource(R.string.about_whats_new),
+                            subtitle = stringResource(R.string.help_whats_new_sub, BuildConfig.VERSION_NAME),
+                            onClick = { sheet = HelpSheet.WHATS_NEW },
+                        )
                         SettingsDivider()
-                        SettingsLinkRow(title = stringResource(R.string.settings_terms), onClick = onTerms)
+                        SettingsLinkRow(
+                            title = stringResource(R.string.help_licences),
+                            subtitle = stringResource(R.string.help_licences_sub),
+                            onClick = { sheet = HelpSheet.LICENCES },
+                        )
+                        if (devOn) {
+                            SettingsDivider()
+                            ConnectionDetails()
+                        }
                     }
                 }
-
                 item { AboutFooter() }
             }
         }
     }
 
     sheet?.let { which ->
-        AboutTextSheet(
-            title = which.title,
-            body = which.body,
-            onDismiss = { sheet = null },
-        )
+        val title = when (which) {
+            HelpSheet.WHATS_NEW -> stringResource(R.string.help_whats_new_title, BuildConfig.VERSION_NAME)
+            HelpSheet.LICENCES -> stringResource(R.string.help_licences)
+        }
+        val body = stringResource(if (which == HelpSheet.WHATS_NEW) R.string.help_whats_new_body else R.string.help_licences_body)
+        AboutTextSheet(title = title, body = body, onDismiss = { sheet = null })
     }
 }
 
 @Composable
-private fun AppInformationCard() {
+private fun AppInformationCard(onVersionTap: () -> Unit) {
     val c = Rcx.colors
     val shape = RoundedCornerShape(22.dp)
     Box(
@@ -147,17 +151,12 @@ private fun AppInformationCard() {
             .clip(shape)
             .cardSurface(shape)
     ) {
-        // The open road sits *behind* the card rather than above it, so the
-        // version details stay the subject. Dimmed towards the card colour it
-        // reads as a texture on the surface, and every label below keeps the
-        // contrast it had against a flat card.
         RcxPhotoFill(
             res = R.drawable.img_about_header,
             modifier = Modifier.matchParentSize(),
-            darken = 0.88f, // darker scrim so the tagline reads (walk A16 #2)
+            darken = 0.88f,
             darkenColor = c.card,
         )
-
         Column(
             Modifier
                 .fillMaxWidth()
@@ -175,7 +174,11 @@ private fun AppInformationCard() {
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Tapping the version line 5 times reveals Connection details.
+            Row(
+                Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onVersionTap),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 VersionChip(stringResource(R.string.about_version), BuildConfig.VERSION_NAME)
                 VersionChip(stringResource(R.string.about_build), BuildConfig.VERSION_CODE.toString())
             }
@@ -187,7 +190,8 @@ private fun AppInformationCard() {
 @Composable
 private fun ConnectionDetails() {
     val d by com.eshwar.rideconnectx.data.ble.LinkDiagnostics.state.collectAsStateWithLifecycle()
-    val now = remember { System.currentTimeMillis() }
+    // Ticks once a second so "Time since connect" is live.
+    val now by produceState(System.currentTimeMillis()) { while (true) { delay(1000); value = System.currentTimeMillis() } }
     val c = Rcx.colors
     val unknown = "-"
     fun hex(v: Int?) = v?.let { "0x%02X".format(it) } ?: unknown
@@ -252,44 +256,11 @@ private fun VersionChip(label: String, value: String) {
 @Composable
 private fun AboutFooter() {
     val c = Rcx.colors
-    Column(
-        Modifier.fillMaxWidth().padding(top = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            "© 2026 RideConnectX",
-            style = RcxType.BodySmall.copy(fontSize = 12.sp),
-            color = c.muted,
-        )
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(stringResource(R.string.help_copyright), style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.muted)
         Spacer(Modifier.height(4.dp))
-        Text(
-            "Built with ❤️ for riders.",
-            style = RcxType.BodySmall.copy(fontSize = 12.sp),
-            color = c.muted.copy(alpha = 0.7f),
-        )
+        Text(stringResource(R.string.about_built_with), style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.muted)
     }
-}
-
-/** What's new — new features and what was fixed, which is all a rider needs. */
-private enum class AboutSheet(val title: String, val body: String) {
-    WHATS_NEW(
-        "What's new in ${BuildConfig.VERSION_NAME}",
-        """
-        NEW
-        • Turn-by-turn directions relayed to the instrument cluster.
-        • Live odometer, Trip A, Trip B and fuel from the vehicle.
-        • Phone battery, signal and clock shown on the cluster.
-        • Service tracking with reminders and a maintenance history.
-        • Safety screen with SOS and emergency contacts.
-        • Light and dark themes, three colour palettes, adjustable text size.
-
-        FIXED
-        • Google sign-in no longer says "no accounts found" on the first tap.
-        • A mistyped service reading can now be undone by deleting it.
-        • The units setting is honoured everywhere, not just stored.
-        • Pairing tells you when a scan found nothing, and offers to retry.
-        """.trimIndent(),
-    ),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -301,17 +272,14 @@ private fun AboutTextSheet(title: String, body: String, onDismiss: () -> Unit) {
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = sheetContainerColor(),
     ) {
-        androidx.compose.foundation.layout.Column(Modifier.sheetEnter()) {
-        GlassSheetWindow()
-        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 40.dp)) {
-            Text(title, style = RcxType.Section.copy(fontSize = 17.sp), color = c.text)
-            Spacer(Modifier.height(14.dp))
-            Text(
-                body,
-                style = RcxType.BodySmall.copy(fontSize = 13.sp, lineHeight = 21.sp),
-                color = c.muted,
-            )
+        Column(Modifier.sheetEnter()) {
+            GlassSheetWindow()
+            // Scrolls: the licence list is taller than a landscape screen.
+            Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 40.dp).verticalScroll(rememberScrollState())) {
+                Text(title, style = RcxType.Section.copy(fontSize = 17.sp), color = c.text)
+                Spacer(Modifier.height(14.dp))
+                Text(body, style = RcxType.BodySmall.copy(fontSize = 13.sp, lineHeight = 21.sp), color = c.text.copy(alpha = 0.78f))
+            }
         }
-    }
     }
 }

@@ -89,6 +89,10 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import com.eshwar.rideconnectx.core.util.AppPermissions
 import com.eshwar.rideconnectx.presentation.components.BackHeader
+import com.eshwar.rideconnectx.presentation.components.BottomActions
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.eshwar.rideconnectx.presentation.components.PrimaryButton
 import com.eshwar.rideconnectx.presentation.components.RiderAvatar
 import com.eshwar.rideconnectx.domain.model.FieldRules
@@ -130,7 +134,6 @@ fun ProfileScreen(
     val recentSignIns by vm.recentSignIns.collectAsStateWithLifecycle()
 
     var editing by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    var showPhotoSheet by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var showPhotoViewer by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val photoVersion by vm.photoVersion.collectAsStateWithLifecycle()
     val pendingPhoto by vm.pendingPhoto.collectAsStateWithLifecycle()
@@ -150,9 +153,6 @@ fun ProfileScreen(
     var confirmMigrate by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var confirmSignOut by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var confirmDelete by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    var confirmDeleteAccount by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    var deletingAccount by remember { mutableStateOf(false) }
-    val activity = LocalContext.current as android.app.Activity
 
     val connected = connection is ConnectionState.Connected
 
@@ -170,7 +170,8 @@ fun ProfileScreen(
 
             LazyColumn(
                 state = headerList,
-                contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 item {
@@ -182,32 +183,14 @@ fun ProfileScreen(
                         isGuest = account.isGuest,
                         method = account.method,
                         photoVersion = photoVersion,
-                        onEditPhoto = { showPhotoSheet = true },
-                        // The picture itself opens full screen when there is one (N15).
-                        onViewPhoto = { if (vm.hasPhoto) showPhotoViewer = true else showPhotoSheet = true },
-                    )
-                    }
-                }
-
-                item {
-                    Box(Modifier.enterRise(1)) {
-                    VehicleCard(
-                        vehicle = selection.vehicle,
-                        color = selection.color,
-                        connected = connected,
-                        onChange = onChangeVehicle,
+                        // Big round photo: tap enlarges it; Change photo lives in that view.
+                        onViewPhoto = { showPhotoViewer = true },
                     )
                     }
                 }
 
                 item {
                     SettingsGroup("Account", Icons.Filled.Person) {
-                        SettingsLinkRow(
-                            title = "Edit profile",
-                            subtitle = "Name and city",
-                            onClick = { editing = true },
-                        )
-                        SettingsDivider()
                         SettingsLinkRow(
                             title = "Change vehicle",
                             subtitle = selection.vehicle?.name ?: "No vehicle selected",
@@ -232,35 +215,12 @@ fun ProfileScreen(
                         )
                         if (com.eshwar.rideconnectx.BuildConfig.CLOUD_ENABLED) SettingsDivider()
                         SettingsLinkRow(
-                            title = "Sign out",
-                            subtitle = if (account.isGuest)
-                                "Ends this guest session"
-                            else
-                                "Signs out of ${account.email.ifBlank { "your account" }}",
-                            accent = c.amber,
-                            chevron = false,
-                            onClick = { confirmSignOut = true },
-                        )
-                        SettingsDivider()
-                        SettingsLinkRow(
                             title = "Delete local data",
                             subtitle = "Rides, notifications, service records, contacts, ride log and photo",
                             accent = c.red,
                             chevron = false,
                             onClick = { confirmDelete = true },
                         )
-                        // Required by Google Play for any app that creates
-                        // accounts: deletion inside the app, not by email.
-                        if (!account.isGuest && com.eshwar.rideconnectx.BuildConfig.CLOUD_ENABLED) {
-                            SettingsDivider()
-                            SettingsLinkRow(
-                                title = "Delete account",
-                                subtitle = "Permanently removes your account and its data",
-                                accent = c.red,
-                                chevron = false,
-                                onClick = { confirmDeleteAccount = true },
-                            )
-                        }
                     }
                 }
 
@@ -269,12 +229,29 @@ fun ProfileScreen(
                     RecentSignIns(recentSignIns)
                 }
             }
+
+            // Pinned at the bottom, side by side.
+            BottomActions {
+                PrimaryButton(
+                    label = stringResource(R.string.profile_edit),
+                    onClick = { editing = true },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                PrimaryButton(
+                    label = if (account.isGuest) "Sign in" else stringResource(R.string.profile_sign_out),
+                    // N137: a guest has nothing to sign out of; Sign in reuses the keep-profile sheet.
+                    onClick = { if (account.isGuest) confirmMigrate = true else confirmSignOut = true },
+                    secondary = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 
     if (showPhotoViewer) {
         PhotoViewer(
             name = account.name,
+            hasPhoto = vm.hasPhoto,
             version = photoVersion,
             onChange = {
                 showPhotoViewer = false
@@ -290,21 +267,6 @@ fun ProfileScreen(
             },
             onRotate = vm::rotatePhoto,
             onDismiss = { showPhotoViewer = false },
-        )
-    }
-
-    if (showPhotoSheet) {
-        PhotoActionSheet(
-            hasPhoto = vm.hasPhoto,
-            onChoose = {
-                showPhotoSheet = false
-                requestPhotos.launch(AppPermissions.photos.manifest.toTypedArray())
-            },
-            onRemove = {
-                showPhotoSheet = false
-                vm.removePhoto()
-            },
-            onDismiss = { showPhotoSheet = false },
         )
     }
 
@@ -375,58 +337,6 @@ fun ProfileScreen(
         )
     }
 
-    if (confirmDeleteAccount) {
-        val needsPassword = account.method == LoginMethod.EMAIL
-        var password by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
-        ConfirmSheet(
-            title = "Delete your account and cloud data forever?",
-            body = "This permanently deletes your account, and with it your profile, " +
-                "saved places and rides in the cloud, plus this account's contacts, " +
-                "service records and rides on this phone. It can't be undone.\n\n" +
-                when {
-                    needsPassword -> "Enter your password to confirm."
-                    account.method == LoginMethod.EMAIL_LINK ->
-                        "If you signed in a while ago, you will be asked to sign in again first."
-                    else -> "Google will ask you to confirm it's you."
-                },
-            confirmLabel = if (deletingAccount) "Deleting…" else "Delete",
-            onDismiss = { if (!deletingAccount) confirmDeleteAccount = false },
-            onConfirm = {
-                if (deletingAccount || (needsPassword && password.isEmpty())) return@ConfirmSheet
-                deletingAccount = true
-                vm.deleteAccount(activity, password.takeIf { needsPassword }) { error ->
-                    deletingAccount = false
-                    if (error == null) {
-                        confirmDeleteAccount = false
-                        onSignedOut()
-                    } else {
-                        android.widget.Toast.makeText(activity, error, android.widget.Toast.LENGTH_LONG).show()
-                        // Firebase wants a fresh sign-in: sign out and open sign-in (no email is sent here).
-                        if (error == com.eshwar.rideconnectx.domain.model.AuthError.SignInTooOld.message) {
-                            confirmDeleteAccount = false
-                            vm.signOut(onDone = onSignedOut)
-                        }
-                    }
-                }
-            },
-            extra = if (needsPassword) {
-                {
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Password") },
-                        singleLine = true,
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            } else null,
-        )
-    }
-
     if (confirmDelete) {
         ConfirmSheet(
             title = "Delete local data?",
@@ -454,7 +364,6 @@ private fun ProfileCard(
     method: LoginMethod,
     photoVersion: Int,
     onViewPhoto: () -> Unit,
-    onEditPhoto: () -> Unit,
 ) {
     val c = Rcx.colors
     val shape = RoundedCornerShape(24.dp)
@@ -494,37 +403,20 @@ private fun ProfileCard(
                 .padding(start = 24.dp, end = 24.dp, top = 46.dp, bottom = 26.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Tappable, with a camera badge. The picture could previously only
-            // be set during Create Profile — so the screen actually called
-            // "Profile" could show it and not change it, and anyone who skipped
-            // it at setup had no route back to it at all.
-            Box(contentAlignment = Alignment.BottomEnd) {
-                RiderAvatar(
-                    name = name,
-                    size = 92.dp,
-                    version = photoVersion,
-                    modifier = Modifier.clickable(onClick = onViewPhoto),
-                )
-                val badgeSrc = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                Box(
-                    Modifier
-                        // Press feedback at once; the sheet itself can take a moment to open.
-                        .pressSquash(badgeSrc, 0.85f)
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .clickable(badgeSrc, androidx.compose.foundation.LocalIndication.current, role = androidx.compose.ui.semantics.Role.Button, onClick = onEditPhoto),
-                    contentAlignment = Alignment.Center,
-                ) {
-                  Box(Modifier.size(30.dp).clip(CircleShape).background(c.blue), contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Filled.PhotoCamera,
-                        contentDescription = stringResource(R.string.profile_change_photo),
-                        tint = Color.White,
-                        modifier = Modifier.size(15.dp),
-                    )
-                  }
-                }
-            }
+            // The picture could only be set during Create Profile, so anyone who
+            // skipped it had no route back to it. Tapping it opens the full-screen
+            // view, which holds Change photo.
+            RiderAvatar(
+                name = name,
+                size = 140.dp,
+                version = photoVersion,
+                modifier = Modifier
+                    .clickable(
+                        onClickLabel = stringResource(R.string.profile_photo_enlarge),
+                        role = androidx.compose.ui.semantics.Role.Button,
+                        onClick = onViewPhoto,
+                    ),
+            )
 
             Spacer(Modifier.height(14.dp))
 
@@ -535,15 +427,18 @@ private fun ProfileCard(
                 maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
 
+            Spacer(Modifier.height(10.dp))
+            com.eshwar.rideconnectx.presentation.components.ClusterGreetingPreview(name)
+
+            if (location.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(location, style = RcxType.BodySmall.copy(fontSize = 13.sp), color = c.muted)
+            }
+
             // Guests have no email; showing an empty line instead would look broken.
             if (email.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(email, style = RcxType.BodySmall.copy(fontSize = 13.sp), color = c.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            }
-
-            if (location.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(location, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.muted)
             }
 
             Spacer(Modifier.height(12.dp))
@@ -608,100 +503,6 @@ private fun AccountBadge(isGuest: Boolean, method: LoginMethod) {
     )
 }
 
-/* ── Vehicle card ─────────────────────────────────────────────────── */
-
-@Composable
-private fun VehicleCard(
-    vehicle: Vehicle?,
-    color: VehicleColor?,
-    connected: Boolean,
-    onChange: () -> Unit,
-) {
-    val c = Rcx.colors
-    val shape = RoundedCornerShape(22.dp)
-    val vehicleName = vehicle?.name.orEmpty()
-    val colorName = color?.name.orEmpty()
-
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .cardSurface(shape)
-            .clickable(onClick = onChange)
-            .padding(18.dp),
-    ) {
-        Text("MY VEHICLE", style = RcxType.MonoTiny, color = c.muted)
-
-        // Same treatment as the dashboard: the machine is the point of the
-        // card, so it gets the width rather than a thumbnail in the corner.
-        if (vehicle != null) {
-            Spacer(Modifier.height(12.dp))
-            VehicleStage(
-                vehicle = vehicle,
-                colorway = color,
-                accent = c.blue,
-                modifier = Modifier.clip(RoundedCornerShape(16.dp)),
-                height = 180.dp,
-                float = true,
-                live = connected,
-                tilt = com.eshwar.rideconnectx.presentation.theme.rememberTilt(),
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        Text(
-            vehicleName.ifBlank { "No vehicle selected" },
-            style = RcxType.Wordmark.copy(fontSize = 19.sp),
-            color = c.text,
-        )
-        if (colorName.isNotBlank()) {
-            Spacer(Modifier.height(4.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                color?.let { paint ->
-                    Box(
-                        Modifier
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(paint.primary)
-                            .border(1.dp, c.border, CircleShape)
-                    )
-                }
-                Text(colorName, style = RcxType.BodySmall.copy(fontSize = 12.sp), color = c.muted)
-            }
-        }
-
-        Spacer(Modifier.height(14.dp))
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background((if (connected) c.green else c.muted).copy(alpha = 0.07f))
-                .padding(horizontal = 12.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.Filled.Bluetooth,
-                null,
-                Modifier.size(14.dp),
-                tint = if (connected) c.green else c.muted,
-            )
-            Text(
-                if (connected) "Connected" else "Not connected",
-                style = RcxType.BodySmall.copy(fontSize = 12.sp),
-                color = if (connected) c.green else c.muted,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(Icons.Filled.TwoWheeler, null, Modifier.size(14.dp), tint = c.muted.copy(alpha = 0.5f))
-        }
-    }
-}
-
 /* ── Edit profile ─────────────────────────────────────────────────── */
 
 /** Under a name-like field: the error when there is one, else the rule (N18). */
@@ -715,10 +516,11 @@ internal fun NameFieldNote(error: String?, hint: String) {
     )
 }
 
-/** The rider's picture full screen, with the two things they can do to it (N15). */
+/** The rider's picture full screen, with the things they can do to it (N15). */
 @Composable
 private fun PhotoViewer(
     name: String,
+    hasPhoto: Boolean,
     version: Int,
     onChange: () -> Unit,
     onRemove: () -> Unit,
@@ -734,11 +536,10 @@ private fun PhotoViewer(
             Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .safeDrawingCentred()
-                .padding(24.dp),
+                .safeDrawingCentred(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+            Box(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 24.dp), contentAlignment = Alignment.CenterEnd) {
                 Text(
                     stringResource(R.string.common_close),
                     style = RcxType.Body.copy(fontSize = 15.sp),
@@ -751,76 +552,37 @@ private fun PhotoViewer(
             }
             val zoom = remember { Animatable(0.4f) }
             LaunchedEffect(Unit) { zoom.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 320f)) }
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            androidx.compose.foundation.layout.BoxWithConstraints(
+                Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                // As big as fits, up to 300 dp, so it also fits a landscape screen.
+                val side = minOf(300.dp, maxWidth, maxHeight)
                 Box(Modifier.graphicsLayer { scaleX = zoom.value; scaleY = zoom.value; alpha = (zoom.value - 0.4f) / 0.6f }) {
-                    RiderAvatar(name = name, size = 300.dp, ring = false, version = version)
+                    RiderAvatar(name = name, size = side, ring = false, version = version)
                 }
             }
-            // Edit the picture already set (N17): re-frame it, or turn it.
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PrimaryButton(label = "Edit", onClick = onEdit, secondary = true, modifier = Modifier.weight(1f))
-                PrimaryButton(label = "Rotate", onClick = onRotate, secondary = true, modifier = Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(10.dp))
-            PrimaryButton(
-                label = stringResource(R.string.profile_change_photo),
-                onClick = onChange,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(10.dp))
-            PrimaryButton(
-                label = stringResource(R.string.profile_remove_photo),
-                onClick = onRemove,
-                secondary = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PhotoActionSheet(
-    hasPhoto: Boolean,
-    onChoose: () -> Unit,
-    onRemove: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val c = Rcx.colors
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = sheetContainerColor(),
-    ) {
-        androidx.compose.foundation.layout.Column(Modifier.sheetEnter()) {
-        GlassSheetWindow()
-        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
-            Text(
-                stringResource(R.string.profile_photo_title),
-                style = RcxType.Section.copy(fontSize = 17.sp),
-                color = c.text,
-            )
-            Spacer(Modifier.height(18.dp))
-
-            PrimaryButton(
-                label = stringResource(R.string.profile_change_photo),
-                onClick = onChoose,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            // Only offered when there is something to remove.
-            if (hasPhoto) {
-                Spacer(Modifier.height(10.dp))
+            // The buttons are pinned and stacked; on a short screen they scroll inside their own area.
+            val maxBar = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.55f).dp
+            BottomActions(Modifier.heightIn(max = maxBar).verticalScroll(rememberScrollState())) {
                 PrimaryButton(
-                    label = stringResource(R.string.profile_remove_photo),
-                    onClick = onRemove,
-                    secondary = true,
+                    label = stringResource(R.string.profile_change_photo),
+                    onClick = onChange,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                // Edit the picture already set (N17): re-frame it, or turn it.
+                if (hasPhoto) {
+                    PrimaryButton(label = stringResource(R.string.profile_photo_edit), onClick = onEdit, secondary = true, modifier = Modifier.fillMaxWidth())
+                    PrimaryButton(label = stringResource(R.string.profile_photo_rotate), onClick = onRotate, secondary = true, modifier = Modifier.fillMaxWidth())
+                    PrimaryButton(
+                        label = stringResource(R.string.profile_remove_photo),
+                        onClick = onRemove,
+                        secondary = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
-    }
     }
 }
 
@@ -850,7 +612,8 @@ private fun EditProfileSheet(
     val cityError = if (
         location.isBlank() || location.trim() == initialLocation.trim() || IndianCities.find(location) != null
     ) null else "Pick your city from the list"
-    val nicknameError = FieldRules.nicknameError(nickname)
+    // Optional (N136): blank saves, anything typed still follows the nickname rule.
+    val nicknameError = if (nickname.isBlank()) null else FieldRules.nicknameError(nickname)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -893,7 +656,7 @@ private fun EditProfileSheet(
                     nickname = f.text
                     nicknameIgnored = f.ignored
                 },
-                placeholder = "Nickname (the dashboard greets you by it)",
+                placeholder = "Nickname (optional)",
             )
             NameFieldNote(
                 error = if (nicknameIgnored) FieldRules.NAME_CHARS_MESSAGE else nicknameError.takeIf { showError },

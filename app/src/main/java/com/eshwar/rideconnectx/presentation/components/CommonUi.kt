@@ -92,7 +92,7 @@ fun PrimaryButton(
     val base = modifier
         .pressScale(pressed && enabled)
         // Grows with a big font instead of cutting the label.
-        .heightIn(min = 56.dp)
+        .heightIn(min = 48.dp)
         // Dimmed so they do not look tappable; 0.6 (was 0.4) keeps the label readable in dark theme.
         .alpha(if (enabled) 1f else 0.6f)
         .clip(shape)
